@@ -1,67 +1,100 @@
 # SOEN-343
-Full-stack starter project using **ASP.NET Core Web API** (backend) + **Angular** (frontend).
+
+Full-stack starter project using:
+
+- ASP.NET Core Web API (backend)
+- Angular (frontend)
 
 ---
 
-## For Backend
+## Requirements
 
-### Instructions
-1. Open a new terminal.
-2. Navigate to the repo root (the folder that contains `SUMMS.sln`).
-3. Run <code>dotnet restore</code> to install required dependencies.
-4. Run <code>dotnet run</code> to boot-up the backend.
+Make sure you have installed:
 
-### Verify it’s running
-- Swagger UI: <code>http://localhost:5065/swagger</code>
-- Ping endpoint (REST): <code>http://localhost:5065/api/ping</code>
-- Sample endpoint: <code>http://localhost:5065/weatherforecast</code>
-
-> If your backend starts on a different port, check <code>Properties/launchSettings.json</code> for the <code>applicationUrl</code>.
-
-### Technologies Used
-- <b>ASP.NET Core Web API</b> – Used to build the backend REST API (Minimal API setup).
-- <b>Swagger (OpenAPI)</b> – Used to explore and test the API endpoints in the browser.
-- <b>.NET SDK</b> – Build + run tooling for the backend.
+- .NET SDK (recommended: .NET 8)
+- Node.js (LTS)
+- npm (comes with Node)
 
 ---
 
-## For Frontend
+## Getting Started
 
-### Instructions
-1. Open a new terminal.
-2. Run <code>cd frontend/summs-ui</code>.
-3. Run <code>npm install</code> to install required dependencies.
-4. Start the Angular dev server using the proxy config:
-   - Run <code>npm start -- --proxy-config src/proxy.conf.json</code>
+### 1. Clone the Repository
 
-Then open:
-- <code>http://localhost:4200</code>
+```bash
+git clone https://github.com/markantoun0/SOEN-343.git
+cd SOEN-343
+```
 
-### Verify frontend ↔ backend connection
-With the backend running, open:
-- <code>http://localhost:4200/api/ping</code>
+### 2. Run the Backend (ASP.NET Core)
 
-If it returns JSON like <code>{"message":"pong", ...}</code>, the frontend is connected to the backend through the proxy.
+From the project root:
 
-### Technologies Used
-- <b>Angular</b> – Used to build the frontend SPA.
-- <b>TypeScript</b> – Improves code safety and maintainability.
-- <b>Angular HttpClient</b> – Used to call the backend REST API.
+```bash
+dotnet restore
+dotnet run
+```
+
+The backend will start on:
+- http://localhost:5065
+
+Swagger UI:
+- http://localhost:5065/swagger
+
+Test endpoint:
+- http://localhost:5065/api/ping
+
+Leave this terminal running.
 
 ---
 
-## How the Frontend Connects to the Backend (Proxy)
+### 3. Run the Frontend (Angular)
 
-During development you have:
-- Frontend dev server: <code>http://localhost:4200</code>
-- Backend API server: <code>http://localhost:5065</code>
+Open a second terminal:
 
-Calling <code>http://localhost:5065</code> directly from a page served on <code>http://localhost:4200</code> is cross-origin and often needs CORS.
+```bash
+cd frontend/summs-ui
+npm install
+npm start -- --proxy-config src/proxy.conf.json
+```
 
-To avoid CORS headaches and keep requests clean (e.g. <code>/api/ping</code>), Angular uses a <b>dev proxy</b>:
-- File: <code>frontend/summs-ui/src/proxy.conf.json</code>
-- It forwards <code>/api/*</code> → <code>http://localhost:5065/api/*</code>
+Angular will start on:
+- http://localhost:4200
 
-This lets the Angular code call:
-```ts
-this.http.get('/api/ping')
+---
+
+### 4. Verify Frontend ↔ Backend Connection
+
+With both servers running, open:
+
+```
+http://localhost:4200/api/ping
+```
+
+If you see JSON with `"pong"`, the frontend is successfully connected to the backend.
+
+You can also open:
+
+```
+http://localhost:4200
+```
+
+and click **Ping backend** in the UI.
+
+---
+
+## About the Proxy
+
+During development:
+- Angular runs on `http://localhost:4200`
+- Backend runs on `http://localhost:5065`
+
+Angular uses a development proxy (`frontend/summs-ui/src/proxy.conf.json`) so requests like `/api/ping` are automatically forwarded to the backend. This avoids CORS issues and keeps API calls simple.
+
+---
+
+## Notes
+
+- The backend must be running before frontend API calls will work.
+- If the backend port changes, update `src/proxy.conf.json`.
+- If `npm start` fails with proxy errors, ensure `proxy.conf.json` contains valid JSON and starts with `{`.
