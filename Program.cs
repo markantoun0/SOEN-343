@@ -1,13 +1,49 @@
+using dotenv.net;
+using SUMMS.Api.Services;
+using SUMMS.Api.Services.Interfaces;
+
+// ── Load .env file (ignored if missing so production env vars still work) ─────
+DotEnv.Load(options: new DotEnvOptions(ignoreExceptions: true));
+
+// Map GOOGLE_PLACES_API_KEY env var → IConfiguration key used in services
+if (Environment.GetEnvironmentVariable("GOOGLE_PLACES_API_KEY") is { } placesKey)
+    Environment.SetEnvironmentVariable("GooglePlaces__ApiKey", placesKey);
+
+if (Environment.GetEnvironmentVariable("GOOGLE_MAPS_JS_API_KEY") is { } mapsKey)
+    Environment.SetEnvironmentVariable("GoogleMaps__JsApiKey", mapsKey);
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// ── CORS ───────────────────────────────────────────────────────────────────────
+var allowedOrigins = (Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "http://localhost:4200")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendPolicy", policy =>
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod());
+});
+
+// Make env-based keys available via IConfiguration (must be before Build())
+builder.Configuration.AddEnvironmentVariables();
+
+// ── Controllers + Swagger ──────────────────────────────────────────────────────
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "SUMMS API", Version = "v1" });
+});
+
+// ── Application Services (layered architecture) ───────────────────────────────
+builder.Services.AddHttpClient<IMobilityService, GooglePlacesService>();
+builder.Services.AddHttpClient<IBixiService, BixiService>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ── Middleware pipeline ────────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -15,30 +51,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("FrontendPolicy");
+app.UseAuthorization();
+app.MapControllers();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast")
-    .WithOpenApi();
+// ── Legacy minimal-API endpoints (kept for backwards compat) ──────────────────
 app.MapGet("/api/ping", () => Results.Ok(new { message = "pong", time = DateTimeOffset.UtcNow }));
+
+// Expose the Maps JS API key to the frontend safely
+app.MapGet("/api/config/maps-key", () =>
+    Results.Ok(new { key = builder.Configuration["GoogleMaps:JsApiKey"] ?? "" }));
+
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

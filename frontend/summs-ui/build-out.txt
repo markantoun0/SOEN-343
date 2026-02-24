@@ -1,0 +1,12 @@
+[33m>[39m Building...
+[32m√[39m Building...
+[1mInitial chunk files[22m[2m | [22m[1mNames[22m        [2m | [22m [1mRaw size[22m
+[32mmain.js[39m            [2m | [22m[2mmain[22m         [2m | [22m  [36m1.46 MB[39m[2m | [22m
+[32mstyles.css[39m         [2m | [22m[2mstyles[22m       [2m | [22m[36m330 bytes[39m[2m | [22m
+
+[1m [22m                  [2m | [22m[1mInitial total[22m[2m | [22m  [1m1.46 MB[22m
+
+Application bundle generation complete. [1.226 seconds] - 2026-02-24T04:35:58.034Z
+
+Output location: C:\Users\mark\OneDrive\Desktop\SOEN-343\frontend\summs-ui\dist\summs-ui
+
