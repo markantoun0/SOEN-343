@@ -36,12 +36,30 @@ export class MapComponent {
   protected selectedLocation: MobilityLocation | null = null;
 
   // Single observable — Angular async pipe handles subscribe/unsubscribe & change detection
-  protected readonly locations$ = this.http
+  protected locations$ = this.http
     .get<{ locations: MobilityLocation[] }>('/api/mobility/montreal-laval')
     .pipe(
       map((res) => ({ data: res.locations, error: null })),
       catchError((err) => of({ data: null, error: err?.message ?? 'Failed to load locations.' }))
     );
+
+  ngOnInit(): void {
+    this.loadMapsScript();
+  }
+
+  private async loadMapsScript(): Promise<void> {
+    // Fetch the API key from backend
+    const res = await fetch('/api/config/maps-key');
+    const { key } = await res.json();
+    if (!key) return;
+    // Inject the script if not already present
+    if (!document.getElementById('google-maps-script')) {
+      const script = document.createElement('script');
+      script.id = 'google-maps-script';
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
+      document.head.appendChild(script);
+    }
+  }
 
   protected getMarkerOptions(loc: MobilityLocation): google.maps.MarkerOptions {
     const isBixi = loc.type === 'bixi';
@@ -67,4 +85,3 @@ export class MapComponent {
     infoWindow.open(marker);
   }
 }
-
