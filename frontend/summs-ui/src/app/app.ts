@@ -1,24 +1,30 @@
-import { Component, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { JsonPipe } from '@angular/common';
-import { RouterOutlet } from '@angular/router';
+import { Component } from '@angular/core';
+import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [JsonPipe, RouterOutlet],
-  templateUrl: './app.html',
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  template: `
+    <!-- Top nav bar -->
+    <nav class="app-nav">
+      <span class="app-brand">SUMMS</span>
+    </nav>
+
+    <!-- Menu bar (space reserved for future pages) -->
+    <div class="app-menu">
+      <a routerLink="/map" routerLinkActive="active">🗺 Map</a>
+      <!-- Future links go here, e.g.:
+      <a routerLink="/directions" routerLinkActive="active">🧭 Directions</a>
+      <a routerLink="/parking"    routerLinkActive="active">🅿️ Parking</a>
+      -->
+    </div>
+
+    <!-- Page content -->
+    <main>
+      <router-outlet />
+    </main>
+  `,
   styleUrl: './app.scss',
 })
-export class App {
-  private http = inject(HttpClient);
-
-  result: any = null;
-
-  pingApi() {
-    this.http.get('/api/ping').subscribe({
-      next: (r) => (this.result = r),
-      error: (e) => (this.result = e),
-    });
-  }
-}
+export class App {}
