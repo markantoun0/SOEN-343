@@ -1,6 +1,8 @@
 using dotenv.net;
 using SUMMS.Api.Services;
 using SUMMS.Api.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using SUMMS.Api.Data;
 
 // ── Load .env file (ignored if missing so production env vars still work) ─────
 DotEnv.Load(options: new DotEnvOptions(ignoreExceptions: true));
@@ -22,20 +24,23 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendPolicy", policy =>
         policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+            .AllowAnyHeader()
+            .AllowAnyMethod());
 });
 
 // Make env-based keys available via IConfiguration (must be before Build())
 builder.Configuration.AddEnvironmentVariables();
 
+
+// DB
+builder.Configuration.AddEnvironmentVariables();
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 // ── Controllers + Swagger ──────────────────────────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new() { Title = "SUMMS API", Version = "v1" });
-});
+builder.Services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new() { Title = "SUMMS API", Version = "v1" }); });
 
 // ── Application Services (layered architecture) ───────────────────────────────
 builder.Services.AddHttpClient<IMobilityService, GooglePlacesService>();
@@ -62,5 +67,13 @@ app.MapGet("/api/ping", () => Results.Ok(new { message = "pong", time = DateTime
 app.MapGet("/api/config/maps-key", () =>
     Results.Ok(new { key = builder.Configuration["GoogleMaps:JsApiKey"] ?? "" }));
 
-app.Run();
+//TEST DB CONNECTION 
+/*
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.EnsureCreated();
+}
 
+*/
+app.Run();
