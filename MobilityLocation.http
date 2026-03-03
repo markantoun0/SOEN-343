@@ -1,0 +1,120 @@
+﻿﻿﻿### MobilityLocation API Tests
+### Test file for Rider HTTP Client
+
+### 1. Get all stored locations
+GET http://localhost:5065/api/mobility/stored
+Accept: application/json
+
+###
+
+### 2. Get only bike locations
+GET http://localhost:5065/api/mobility/stored?type=bike
+Accept: application/json
+
+###
+
+### 3. Get only parking locations
+GET http://localhost:5065/api/mobility/stored?type=parking
+Accept: application/json
+
+###
+
+### 4. Create a new bike location
+POST http://localhost:5065/api/mobility/stored
+Content-Type: application/json
+
+{
+  "placeId": "bike_mtl_mcgill",
+  "name": "BIXI Station McGill",
+  "type": "bike",
+  "city": "Montreal",
+  "latitude": 45.5048,
+  "longitude": -73.5772,
+  "capacity": 25,
+  "availableSpots": 12
+}
+
+###
+
+### 5. Create a new parking location
+POST http://localhost:5065/api/mobility/stored
+Content-Type: application/json
+
+{
+  "placeId": "parking_mtl_pvm",
+  "name": "Place Ville Marie Parking",
+  "type": "parking",
+  "city": "Montreal",
+  "latitude": 45.5017,
+  "longitude": -73.5673,
+  "capacity": 150,
+  "availableSpots": 45
+}
+
+###
+
+### 6. Create a bike location in Laval
+POST http://localhost:5065/api/mobility/stored
+Content-Type: application/json
+
+{
+  "placeId": "bike_lvl_centre",
+  "name": "BIXI Station Laval Centre",
+  "type": "bike",
+  "city": "Laval",
+  "latitude": 45.6066,
+  "longitude": -73.7124,
+  "capacity": 20,
+  "availableSpots": 8
+}
+
+###
+
+### 7. Get a specific location by ID (replace {id} with actual ID)
+GET http://localhost:5065/api/mobility/stored/1
+Accept: application/json
+
+###
+
+### 8. Update available spots for location ID 1
+PATCH http://localhost:5065/api/mobility/stored/1/spots
+Content-Type: application/json
+
+{
+  "availableSpots": 18
+}
+
+###
+
+### 9. Update available spots for location ID 2
+PATCH http://localhost:5065/api/mobility/stored/2/spots
+Content-Type: application/json
+
+{
+  "availableSpots": 60
+}
+
+###
+
+### 10. Test with invalid data (should return 400 Bad Request)
+POST http://localhost:5065/api/mobility/stored
+Content-Type: application/json
+
+{
+  "placeId": "",
+  "name": "",
+  "type": "",
+  "city": "Montreal",
+  "latitude": 45.5,
+  "longitude": -73.6,
+  "capacity": 30,
+  "availableSpots": 15
+}
+
+###
+
+### 11. Get non-existent location (should return 404)
+GET http://localhost:5065/api/mobility/stored/99999
+Accept: application/json
+
+###

@@ -1,4 +1,4 @@
-﻿import { Injectable, inject } from '@angular/core';
+﻿﻿import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -6,7 +6,7 @@ import { environment } from '../../environments/environment';
 export interface MobilityLocation {
   placeId: string;
   name: string;
-  type: 'bike' | 'parking';
+  type: 'bixi' | 'parking';
   latitude: number;
   longitude: number;
   vicinity?: string;

@@ -45,6 +45,8 @@ builder.Services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new() { Title = "SUMMS 
 // ── Application Services (layered architecture) ───────────────────────────────
 builder.Services.AddHttpClient<IMobilityService, GooglePlacesService>();
 builder.Services.AddHttpClient<IBixiService, BixiService>();
+builder.Services.AddScoped<IMobilityLocationService, MobilityLocationService>();
+builder.Services.AddScoped<IReservationService, ReservationService>();
 
 var app = builder.Build();
 

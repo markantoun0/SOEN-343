@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿﻿﻿using Microsoft.EntityFrameworkCore;
+using SUMMS.Api.Domain.Models;
 using YourProject.Models;
 
 namespace SUMMS.Api.Data
@@ -11,5 +12,7 @@ namespace SUMMS.Api.Data
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<MobilityLocation> MobilityLocations { get; set; }
+        public DbSet<Reservation> Reservations { get; set; }
     }
 }

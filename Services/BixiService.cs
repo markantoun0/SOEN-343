@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+﻿﻿﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using SUMMS.Api.Domain.Models;
 using SUMMS.Api.Services.Interfaces;
@@ -40,14 +40,21 @@ public class BixiService : IBixiService
 
             _logger.LogInformation("BIXI feed returned {Count} stations.", feed.Data.Stations.Count);
 
-            return feed.Data.Stations.Select(s => new MobilityLocation
+            return feed.Data.Stations.Select(s =>
             {
-                PlaceId   = s.StationId,
-                Name      = s.Name,
-                Type      = "bixi",
-                Latitude  = s.Lat,
-                Longitude = s.Lon,
-                Vicinity  = $"Capacity: {s.Capacity} docks"
+                var seed = s.StationId.Aggregate(0, (acc, c) => acc + c);
+                var available = new Random(seed).Next(0, s.Capacity + 1);
+                return new MobilityLocation
+                {
+                    PlaceId        = s.StationId,
+                    Name           = s.Name,
+                    Type           = "bixi",
+                    City           = "Montreal",
+                    Latitude       = s.Lat,
+                    Longitude      = s.Lon,
+                    Capacity       = s.Capacity,
+                    AvailableSpots = available
+                };
             });
         }
         catch (Exception ex)

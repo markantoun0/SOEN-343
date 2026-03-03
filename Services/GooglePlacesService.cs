@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+﻿﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using SUMMS.Api.Domain.Models;
 using SUMMS.Api.Services.Interfaces;
@@ -69,13 +69,12 @@ public class GooglePlacesService : IMobilityService
 
             return response.Results.Select(r =>
             {
-                int? availableSpots = null;
-                if (locationType == "parking")
-                {
-                    // Deterministic seed from PlaceId so the same spot always gets the same number
-                    var seed = r.PlaceId.Aggregate(0, (acc, c) => acc + c);
-                    availableSpots = new Random(seed).Next(1, 29); // 1–28 inclusive
-                }
+                var seed = r.PlaceId.Aggregate(0, (acc, c) => acc + c);
+                var rng  = new Random(seed);
+                // Simulate capacity: parking 50–200, other 10–30
+                int capacity       = locationType == "parking" ? rng.Next(50, 201) : rng.Next(10, 31);
+                int availableSpots = locationType == "parking" ? rng.Next(1, 29)   : rng.Next(0, capacity + 1);
+
                 return new MobilityLocation
                 {
                     PlaceId        = r.PlaceId,
@@ -83,7 +82,7 @@ public class GooglePlacesService : IMobilityService
                     Type           = locationType,
                     Latitude       = r.Geometry.Location.Lat,
                     Longitude      = r.Geometry.Location.Lng,
-                    Vicinity       = r.Vicinity,
+                    Capacity       = capacity,
                     AvailableSpots = availableSpots
                 };
             });
