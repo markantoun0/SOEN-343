@@ -55,6 +55,22 @@ public class MobilityController : ControllerBase
                             .ToList();
 
             var all = bixi.Concat(parking).ToList();
+
+            // Overlay persisted DB values (after reservations) so refresh keeps updated spot counts.
+            var storedByPlaceId = (await _locationService.GetAllAsync())
+                .GroupBy(l => l.PlaceId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var location in all)
+            {
+                if (!storedByPlaceId.TryGetValue(location.PlaceId, out var stored))
+                    continue;
+
+                location.AvailableSpots = stored.AvailableSpots;
+                location.Capacity = stored.Capacity;
+                location.City = string.IsNullOrWhiteSpace(stored.City) ? location.City : stored.City;
+            }
+
             return Ok(new { success = true, count = all.Count, bixiCount = bixi.Count, parkingCount = parking.Count, locations = all });
         }
         catch (HttpRequestException ex)

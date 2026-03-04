@@ -75,6 +75,43 @@ public class ReservationsController : ControllerBase
         }
     }
 
+    [HttpPost("reserve-location")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ReserveFromLocation([FromBody] ReserveFromLocationRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PlaceId) ||
+            string.IsNullOrWhiteSpace(request.Name) ||
+            string.IsNullOrWhiteSpace(request.Type))
+        {
+            return BadRequest(new { success = false, message = "PlaceId, Name, and Type are required." });
+        }
+
+        try
+        {
+            var reservation = await _reservationService.ReserveFromLocationAsync(
+                placeId: request.PlaceId,
+                name: request.Name,
+                type: request.Type,
+                city: request.City,
+                latitude: request.Latitude,
+                longitude: request.Longitude,
+                capacity: request.Capacity,
+                availableSpots: request.AvailableSpots,
+                reservationTime: request.ReservationTime);
+
+            return CreatedAtAction(
+                nameof(GetById),
+                new { id = reservation.Id },
+                new { success = true, reservation });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { success = false, message = ex.Message });
+        }
+    }
+
     [HttpDelete("{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -94,4 +131,17 @@ public class CreateReservationRequest
     public DateTime ReservationTime    { get; set; } = DateTime.UtcNow;
     public string   City               { get; set; } = string.Empty;
     public string   Type               { get; set; } = string.Empty;
+}
+
+public class ReserveFromLocationRequest
+{
+    public string PlaceId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public int Capacity { get; set; }
+    public int AvailableSpots { get; set; }
+    public DateTime ReservationTime { get; set; } = DateTime.UtcNow;
 }

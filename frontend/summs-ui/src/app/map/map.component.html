@@ -48,6 +48,16 @@
                   🅿️ <strong>{{ selectedLocation.availableSpots }}</strong> spots available
                 </p>
               }
+              <button
+                type="button"
+                class="reserve-btn"
+                (click)="reserveSelectedLocation($event)"
+              >
+                Reserve
+              </button>
+              @if (reserveMessage) {
+                <p class="reserve-message">{{ reserveMessage }}</p>
+              }
             </div>
           }
         </map-info-window>

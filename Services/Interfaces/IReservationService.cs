@@ -16,5 +16,16 @@ public interface IReservationService
         string   city,
         string   type);
 
+    Task<Reservation> ReserveFromLocationAsync(
+        string   placeId,
+        string   name,
+        string   type,
+        string   city,
+        double   latitude,
+        double   longitude,
+        int      capacity,
+        int      availableSpots,
+        DateTime reservationTime);
+
     Task<bool> DeleteAsync(int id);
 }

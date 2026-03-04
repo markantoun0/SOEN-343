@@ -2,7 +2,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { GoogleMap, MapMarker, MapInfoWindow } from '@angular/google-maps';
-import { catchError, map, of } from 'rxjs';
+import { catchError, map, of, timeout } from 'rxjs';
 
 export interface MobilityLocation {
   placeId: string;
@@ -10,8 +10,19 @@ export interface MobilityLocation {
   type: 'bixi' | 'parking';
   latitude: number;
   longitude: number;
+  city?: string;
+  capacity?: number;
   vicinity?: string;
   availableSpots?: number;
+}
+
+interface ReservationResponse {
+  success: boolean;
+  reservation?: {
+    mobilityLocation?: {
+      availableSpots?: number;
+    };
+  };
 }
 
 @Component({
@@ -34,6 +45,7 @@ export class MapComponent {
   };
 
   protected selectedLocation: MobilityLocation | null = null;
+  protected reserveMessage: string | null = null;
 
   // Single observable — Angular async pipe handles subscribe/unsubscribe & change detection
   protected locations$ = this.http
@@ -82,6 +94,91 @@ export class MapComponent {
 
   protected openInfo(infoWindow: MapInfoWindow, marker: MapMarker, loc: MobilityLocation): void {
     this.selectedLocation = loc;
+    this.reserveMessage = null;
     infoWindow.open(marker);
+  }
+
+  protected reserveSelectedLocation(event: Event): void {
+    if (!this.selectedLocation) {
+      return;
+    }
+
+    const currentSpots = Math.max(0, this.selectedLocation.availableSpots ?? 0);
+    if (currentSpots <= 0) {
+      this.reserveMessage = 'There are no spots anymore.';
+      return;
+    }
+
+    const button = event.currentTarget as HTMLButtonElement | null;
+    const infoWindowElement = button?.closest('.info-window') as HTMLElement | null;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Reserving...';
+
+      setTimeout(() => {
+        button.disabled = false;
+        button.textContent = 'Reserve';
+      }, 1000);
+    }
+
+    this.reserveMessage = null;
+
+    const selected = this.selectedLocation;
+    const availableSpots = Math.max(0, selected.availableSpots ?? 0);
+    const capacity = Math.max(selected.capacity ?? availableSpots, availableSpots);
+
+    const payload = {
+      placeId: selected.placeId,
+      name: selected.name,
+      type: selected.type,
+      city: selected.city ?? 'Unknown',
+      latitude: selected.latitude,
+      longitude: selected.longitude,
+      capacity,
+      availableSpots,
+      reservationTime: new Date().toISOString()
+    };
+
+    this.http
+      .post<ReservationResponse>('/api/reservations/reserve-location', payload)
+      .pipe(timeout(15000))
+      .subscribe({
+        next: (res) => {
+          const updatedSpots = res?.reservation?.mobilityLocation?.availableSpots;
+          const nextSpots = typeof updatedSpots === 'number'
+            ? Math.max(0, updatedSpots)
+            : Math.max(0, availableSpots - 1);
+
+          this.applyDisplayedSpots(nextSpots, infoWindowElement);
+
+          if (nextSpots <= 0) {
+            this.reserveMessage = 'There are no spots anymore.';
+          }
+        },
+        error: (err) => {
+          this.reserveMessage = err?.status === 409
+            ? 'There are no spots anymore.'
+            : 'Could not reserve right now.';
+          console.error('Failed to save reservation', err);
+        }
+      });
+  }
+
+  private applyDisplayedSpots(spots: number, infoWindowElement: HTMLElement | null): void {
+    if (this.selectedLocation) {
+      this.selectedLocation.availableSpots = spots;
+    }
+
+    if (!infoWindowElement) {
+      return;
+    }
+
+    const spotsElement = infoWindowElement.querySelector('.spots') as HTMLElement | null;
+    if (!spotsElement) {
+      return;
+    }
+
+    spotsElement.classList.toggle('low', spots <= 5);
+    spotsElement.innerHTML = `🅿️ <strong>${spots}</strong> spots available`;
   }
 }
