@@ -1,5 +1,6 @@
-﻿﻿﻿using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace SUMMS.Api.Domain.Models;
 
@@ -25,6 +26,7 @@ public class MobilityLocation
     
     public int AvailableSpots { get; set; }
 
+    [JsonIgnore]
     public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
 }
 
