@@ -1,4 +1,4 @@
-﻿import { Component, inject } from '@angular/core';
+﻿import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { GoogleMap, MapMarker, MapInfoWindow } from '@angular/google-maps';
@@ -34,6 +34,7 @@ interface ReservationResponse {
 })
 export class MapComponent {
   private http = inject(HttpClient);
+  private cdr = inject(ChangeDetectorRef);
 
   protected center = { lat: 45.5451, lng: -73.6395 };
   protected zoom = 11;
@@ -110,7 +111,6 @@ export class MapComponent {
     }
 
     const button = event.currentTarget as HTMLButtonElement | null;
-    const infoWindowElement = button?.closest('.info-window') as HTMLElement | null;
     if (button) {
       button.disabled = true;
       button.textContent = 'Reserving...';
@@ -149,7 +149,7 @@ export class MapComponent {
             ? Math.max(0, updatedSpots)
             : Math.max(0, availableSpots - 1);
 
-          this.applyDisplayedSpots(nextSpots, infoWindowElement);
+          this.applyDisplayedSpots(selected, nextSpots);
 
           if (nextSpots <= 0) {
             this.reserveMessage = 'There are no spots anymore.';
@@ -164,21 +164,21 @@ export class MapComponent {
       });
   }
 
-  private applyDisplayedSpots(spots: number, infoWindowElement: HTMLElement | null): void {
-    if (this.selectedLocation) {
-      this.selectedLocation.availableSpots = spots;
+  private applyDisplayedSpots(
+    targetLocation: MobilityLocation,
+    spots: number
+  ): void {
+    targetLocation.availableSpots = spots;
+
+    // Force immediate repaint of the open info-window on first click.
+    if (this.selectedLocation?.placeId === targetLocation.placeId) {
+      this.selectedLocation = {
+        ...this.selectedLocation,
+        availableSpots: spots
+      };
     }
 
-    if (!infoWindowElement) {
-      return;
-    }
-
-    const spotsElement = infoWindowElement.querySelector('.spots') as HTMLElement | null;
-    if (!spotsElement) {
-      return;
-    }
-
-    spotsElement.classList.toggle('low', spots <= 5);
-    spotsElement.innerHTML = `🅿️ <strong>${spots}</strong> spots available`;
+    this.cdr.detectChanges();
   }
 }
+
