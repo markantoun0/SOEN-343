@@ -43,6 +43,9 @@
               @if (selectedLocation.vicinity) {
                 <p class="vicinity">{{ selectedLocation.vicinity }}</p>
               }
+              @if (selectedLocation.city) {
+                <p class="city">🏙️ {{ selectedLocation.city }}</p>
+              }
               @if (selectedLocation.availableSpots != null) {
                 <p class="spots" [class.low]="selectedLocation.availableSpots <= 5">
                   🅿️ <strong>{{ selectedLocation.availableSpots }}</strong> spots available

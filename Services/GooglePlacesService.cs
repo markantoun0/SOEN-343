@@ -1,4 +1,4 @@
-﻿﻿using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using SUMMS.Api.Domain.Models;
 using SUMMS.Api.Services.Interfaces;
@@ -80,6 +80,7 @@ public class GooglePlacesService : IMobilityService
                     PlaceId        = r.PlaceId,
                     Name           = r.Name,
                     Type           = locationType,
+                    City           = InferCity(r.Vicinity, r.Geometry.Location.Lat, r.Geometry.Location.Lng),
                     Latitude       = r.Geometry.Location.Lat,
                     Longitude      = r.Geometry.Location.Lng,
                     Capacity       = capacity,
@@ -97,6 +98,27 @@ public class GooglePlacesService : IMobilityService
             _logger.LogError(ex, "Unexpected error fetching {Type} places", type);
             throw;
         }
+    }
+
+    private static string InferCity(string? vicinity, double latitude, double longitude)
+    {
+        if (!string.IsNullOrWhiteSpace(vicinity))
+        {
+            var text = vicinity.Trim().ToLowerInvariant();
+            if (text.Contains("laval"))
+                return "Laval";
+            if (text.Contains("montreal") || text.Contains("montréal"))
+                return "Montreal";
+        }
+
+        const double montrealLat = 45.5017;
+        const double montrealLng = -73.5673;
+        const double lavalLat = 45.6066;
+        const double lavalLng = -73.7124;
+
+        var montrealDistance = Math.Pow(latitude - montrealLat, 2) + Math.Pow(longitude - montrealLng, 2);
+        var lavalDistance = Math.Pow(latitude - lavalLat, 2) + Math.Pow(longitude - lavalLng, 2);
+        return lavalDistance < montrealDistance ? "Laval" : "Montreal";
     }
 
     // ─── Internal DTOs for deserialising Google Places response ───────────────
