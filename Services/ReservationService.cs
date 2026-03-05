@@ -20,6 +20,7 @@ public class ReservationService : IReservationService
     public async Task<IEnumerable<Reservation>> GetAllAsync(string? type = null, string? city = null)
     {
         _logger.LogInformation("Retrieving reservations (type={Type}, city={City})", type ?? "any", city ?? "any");
+        
 
         var query = _db.Reservations
                        .Include(r => r.MobilityLocation) // eager-load the linked location
@@ -166,5 +167,43 @@ public class ReservationService : IReservationService
 
         _logger.LogInformation("Deleted Reservation Id={Id}", id);
         return true;
+    }
+    
+    public async Task<int> CleanupExpiredReservationsAsync()
+    {
+        var now = DateTime.UtcNow;
+
+        // 1. Fetch reservations that have ended
+        var expiredReservations = await _db.Reservations
+            .Include(r => r.MobilityLocation)
+            .Where(r => r.EndDate <= now)
+            .ToListAsync();
+
+        if (!expiredReservations.Any())
+        {
+            return 0;
+        }
+
+        foreach (var reservation in expiredReservations)
+        {
+            _logger.LogInformation("Cleaning up expired reservation Id={ResId} for Location={LocId}", 
+                reservation.Id, reservation.MobilityLocationId);
+
+            // 2. Add the spot back if the location exists
+            if (reservation.MobilityLocation != null)
+            {
+                // Ensure we don't exceed the maximum capacity
+                reservation.MobilityLocation.AvailableSpots = Math.Min(
+                    reservation.MobilityLocation.Capacity, 
+                    reservation.MobilityLocation.AvailableSpots + 1
+                );
+            }
+
+            // 3. Remove the record
+            _db.Reservations.Remove(reservation);
+        }
+
+        await _db.SaveChangesAsync();
+        return expiredReservations.Count;
     }
 }

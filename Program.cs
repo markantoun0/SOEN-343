@@ -48,6 +48,8 @@ builder.Services.AddHttpClient<IBixiService, BixiService>();
 builder.Services.AddScoped<IMobilityLocationService, MobilityLocationService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 
+builder.Services.AddHostedService<CleanupHostedService>();
+
 var app = builder.Build();
 
 // ── Middleware pipeline ────────────────────────────────────────────────────────

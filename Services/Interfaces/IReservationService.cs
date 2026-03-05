@@ -32,4 +32,6 @@ public interface IReservationService
         DateTime endDate);
 
     Task<bool> DeleteAsync(int id);
+
+    Task<int> CleanupExpiredReservationsAsync();
 }

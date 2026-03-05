@@ -167,6 +167,7 @@ public class MobilityController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateSpots(int id, [FromBody] UpdateSpotsRequest request)
     {
+        
         var location = await _locationService.UpdateAvailableSpotsAsync(id, request.AvailableSpots);
         if (location is null)
             return NotFound(new { success = false, message = $"No location found with Id={id}." });
