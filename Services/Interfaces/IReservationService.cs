@@ -14,6 +14,8 @@ public interface IReservationService
         int      mobilityLocationId,
         DateTime reservationTime,
         string   city,
+        DateTime startDate,
+        DateTime endDate,
         string   type);
 
     Task<Reservation> ReserveFromLocationAsync(
@@ -25,7 +27,9 @@ public interface IReservationService
         double   longitude,
         int      capacity,
         int      availableSpots,
-        DateTime reservationTime);
+        DateTime reservationTime,
+        DateTime startDate, // Added
+        DateTime endDate);
 
     Task<bool> DeleteAsync(int id);
 }

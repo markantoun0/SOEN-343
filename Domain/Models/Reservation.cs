@@ -12,6 +12,10 @@ public class Reservation
     public int MobilityLocationId { get; set; }
 
     public DateTime ReservationTime { get; set; }
+    
+    public DateTime StartDate { get; set; }
+    
+    public DateTime EndDate { get; set; }
 
     public string City { get; set; } = string.Empty;
 

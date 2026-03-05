@@ -51,12 +51,16 @@
                   🅿️ <strong>{{ selectedLocation.availableSpots }}</strong> spots available
                 </p>
               }
-              <button
-                type="button"
-                class="reserve-btn"
-                (click)="reserveSelectedLocation($event)"
-              >
-                Reserve
+              <div class="date-picker-container">
+                <label>Start:</label>
+                <input type="datetime-local" id="start-date" class="date-input">
+
+                <label>End:</label>
+                <input type="datetime-local" id="end-date" class="date-input">
+              </div>
+
+              <button type="button" class="reserve-btn" (click)="reserveSelectedLocation($event)">
+                Confirm Reservation
               </button>
               @if (reserveMessage) {
                 <p class="reserve-message">{{ reserveMessage }}</p>
