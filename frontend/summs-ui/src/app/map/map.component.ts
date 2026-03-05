@@ -2,7 +2,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { GoogleMap, MapMarker, MapInfoWindow } from '@angular/google-maps';
-import { catchError, map, of, timeout } from 'rxjs';
+import { catchError, map, of, timeout, finalize } from 'rxjs';
 
 export interface MobilityLocation {
   placeId: string;
@@ -14,6 +14,8 @@ export interface MobilityLocation {
   capacity?: number;
   vicinity?: string;
   availableSpots?: number;
+  startDate: string;
+  endDate: string;
 }
 
 interface ReservationResponse {
@@ -100,7 +102,23 @@ export class MapComponent {
   }
 
   protected reserveSelectedLocation(event: Event): void {
-    if (!this.selectedLocation) {
+    if (!this.selectedLocation) return;
+
+    // 1. Logic to get dates (In a real app, use a Modal/Dialog here)
+    // For this snippet, let's assume you've added two <input type="datetime-local">
+    // to your HTML or are using a Dialog.
+
+    const startDate = (document.getElementById('start-date') as HTMLInputElement)?.value;
+    const endDate = (document.getElementById('end-date') as HTMLInputElement)?.value;
+
+    if (!startDate || !endDate) {
+      this.reserveMessage = 'Please select a start and end date.';
+      return;
+    }
+
+    // Validation: End date must be after start date
+    if (new Date(startDate) >= new Date(endDate)) {
+      this.reserveMessage = 'End date must be after start date.';
       return;
     }
 
@@ -114,19 +132,13 @@ export class MapComponent {
     if (button) {
       button.disabled = true;
       button.textContent = 'Reserving...';
-
-      setTimeout(() => {
-        button.disabled = false;
-        button.textContent = 'Reserve';
-      }, 1000);
     }
-
-    this.reserveMessage = null;
 
     const selected = this.selectedLocation;
     const availableSpots = Math.max(0, selected.availableSpots ?? 0);
     const capacity = Math.max(selected.capacity ?? availableSpots, availableSpots);
 
+    // 2. Add dates to the payload
     const payload = {
       placeId: selected.placeId,
       name: selected.name,
@@ -136,12 +148,21 @@ export class MapComponent {
       longitude: selected.longitude,
       capacity,
       availableSpots,
-      reservationTime: new Date().toISOString()
+      reservationTime: new Date().toISOString(),
+      startDate: new Date(startDate).toISOString(), // Added
+      endDate: new Date(endDate).toISOString()      // Added
     };
 
     this.http
       .post<ReservationResponse>('/api/reservations/reserve-location', payload)
-      .pipe(timeout(15000))
+      .pipe(timeout(15000),
+        finalize(() => {
+          if (button) {
+            button.disabled = false;
+            button.textContent = 'Confirm Reservation';
+          }
+        })
+      )
       .subscribe({
         next: (res) => {
           const updatedSpots = res?.reservation?.mobilityLocation?.availableSpots;
@@ -149,7 +170,10 @@ export class MapComponent {
             ? Math.max(0, updatedSpots)
             : Math.max(0, availableSpots - 1);
 
+          console.log('Next spots calculated:', nextSpots);
+
           this.applyDisplayedSpots(selected, nextSpots);
+          this.reserveMessage = 'Success! Spot reserved.';
 
           if (nextSpots <= 0) {
             this.reserveMessage = 'There are no spots anymore.';

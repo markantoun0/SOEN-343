@@ -59,9 +59,11 @@ public class ReservationsController : ControllerBase
         {
             var reservation = await _reservationService.InsertAsync(
                 mobilityLocationId: request.MobilityLocationId,
-                reservationTime:    request.ReservationTime,
-                city:               request.City,
-                type:               request.Type);
+                reservationTime: request.ReservationTime,
+                city: request.City,
+                startDate: request.StartDate,
+                endDate: request.EndDate,
+                type: request.Type);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -98,6 +100,8 @@ public class ReservationsController : ControllerBase
                 latitude: request.Latitude,
                 longitude: request.Longitude,
                 capacity: request.Capacity,
+                startDate: request.StartDate, 
+                endDate: request.EndDate,
                 availableSpots: request.AvailableSpots,
                 reservationTime: request.ReservationTime);
 
@@ -131,6 +135,10 @@ public class CreateReservationRequest
     public DateTime ReservationTime    { get; set; } = DateTime.UtcNow;
     public string   City               { get; set; } = string.Empty;
     public string   Type               { get; set; } = string.Empty;
+    
+    public DateTime StartDate { get; set; } 
+    
+    public DateTime EndDate { get; set; }
 }
 
 public class ReserveFromLocationRequest
@@ -144,4 +152,9 @@ public class ReserveFromLocationRequest
     public int Capacity { get; set; }
     public int AvailableSpots { get; set; }
     public DateTime ReservationTime { get; set; } = DateTime.UtcNow;
+    
+    public DateTime StartDate { get; set; } 
+    
+    public DateTime EndDate { get; set; }
+    
 }
