@@ -1,8 +1,9 @@
-﻿import { ChangeDetectorRef, Component, inject } from '@angular/core';
+﻿﻿﻿﻿import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { GoogleMap, MapMarker, MapInfoWindow } from '@angular/google-maps';
 import { catchError, map, of, timeout, finalize } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
 
 export interface MobilityLocation {
   placeId: string;
@@ -36,7 +37,8 @@ interface ReservationResponse {
 })
 export class MapComponent {
   private http = inject(HttpClient);
-  private cdr = inject(ChangeDetectorRef);
+  private cdr  = inject(ChangeDetectorRef);
+  private auth = inject(AuthService);
 
   protected center = { lat: 45.5451, lng: -73.6395 };
   protected zoom = 11;
@@ -150,7 +152,8 @@ export class MapComponent {
       availableSpots,
       reservationTime: new Date().toISOString(),
       startDate: new Date(startDate).toISOString(), // Added
-      endDate: new Date(endDate).toISOString()      // Added
+      endDate: new Date(endDate).toISOString(),      // Added
+      userId: this.auth.currentUser()?.id ?? null
     };
 
     this.http

@@ -1,4 +1,4 @@
-﻿CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+﻿﻿CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
     "MigrationId" character varying(150) NOT NULL,
     "ProductVersion" character varying(32) NOT NULL,
     CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
@@ -27,4 +27,63 @@ BEGIN
     END IF;
 END $EF$;
 COMMIT;
+
+
+-- ── Migration: AddUserAuthAndReservationUserId ────────────────────────────────
+
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260311000000_AddUserAuthAndReservationUserId') THEN
+    ALTER TABLE "Users" ADD "PasswordHash" text NOT NULL DEFAULT '';
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260311000000_AddUserAuthAndReservationUserId') THEN
+    ALTER TABLE "Reservations" ADD "StartDate" timestamp with time zone NOT NULL DEFAULT '2000-01-01 00:00:00+00';
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260311000000_AddUserAuthAndReservationUserId') THEN
+    ALTER TABLE "Reservations" ADD "EndDate" timestamp with time zone NOT NULL DEFAULT '2000-01-01 00:00:00+00';
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260311000000_AddUserAuthAndReservationUserId') THEN
+    ALTER TABLE "Reservations" ADD "UserId" integer NULL;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260311000000_AddUserAuthAndReservationUserId') THEN
+    CREATE INDEX "IX_Reservations_UserId" ON "Reservations" ("UserId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260311000000_AddUserAuthAndReservationUserId') THEN
+    ALTER TABLE "Reservations" ADD CONSTRAINT "FK_Reservations_Users_UserId"
+        FOREIGN KEY ("UserId") REFERENCES "Users" ("Id") ON DELETE SET NULL;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260311000000_AddUserAuthAndReservationUserId') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260311000000_AddUserAuthAndReservationUserId', '8.0.8');
+    END IF;
+END $EF$;
+
+COMMIT;
+
 

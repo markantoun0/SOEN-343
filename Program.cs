@@ -47,6 +47,7 @@ builder.Services.AddHttpClient<IMobilityService, GooglePlacesService>();
 builder.Services.AddHttpClient<IBixiService, BixiService>();
 builder.Services.AddScoped<IMobilityLocationService, MobilityLocationService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 builder.Services.AddHostedService<CleanupHostedService>();
 

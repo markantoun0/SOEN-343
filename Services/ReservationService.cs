@@ -16,14 +16,12 @@ public class ReservationService : IReservationService
         _logger = logger;
     }
 
-
     public async Task<IEnumerable<Reservation>> GetAllAsync(string? type = null, string? city = null)
     {
         _logger.LogInformation("Retrieving reservations (type={Type}, city={City})", type ?? "any", city ?? "any");
-        
 
         var query = _db.Reservations
-                       .Include(r => r.MobilityLocation) // eager-load the linked location
+                       .Include(r => r.MobilityLocation)
                        .AsQueryable();
 
         if (!string.IsNullOrEmpty(type))
@@ -35,55 +33,55 @@ public class ReservationService : IReservationService
         return await query.ToListAsync();
     }
 
-
     public async Task<Reservation?> GetByIdAsync(int id)
     {
         _logger.LogInformation("Retrieving reservation Id={Id}", id);
-
         return await _db.Reservations
                         .Include(r => r.MobilityLocation)
                         .FirstOrDefaultAsync(r => r.Id == id);
     }
 
-
     public async Task<IEnumerable<Reservation>> GetByLocationIdAsync(int mobilityLocationId)
     {
         _logger.LogInformation("Retrieving reservations for MobilityLocationId={Id}", mobilityLocationId);
-
         return await _db.Reservations
                         .Include(r => r.MobilityLocation)
                         .Where(r => r.MobilityLocationId == mobilityLocationId)
                         .ToListAsync();
     }
 
+    public async Task<IEnumerable<Reservation>> GetByUserIdAsync(int userId)
+    {
+        _logger.LogInformation("Retrieving reservations for UserId={Id}", userId);
+        return await _db.Reservations
+                        .Include(r => r.MobilityLocation)
+                        .Where(r => r.UserId == userId)
+                        .OrderByDescending(r => r.StartDate)
+                        .ToListAsync();
+    }
 
     public async Task<Reservation> InsertAsync(
         int      mobilityLocationId,
         DateTime reservationTime,
         string   city,
-        DateTime startDate, // Added
-        DateTime endDate,   // Added
-        string   type)
+        DateTime startDate,
+        DateTime endDate,
+        string   type,
+        int?     userId = null)
     {
-        // 1. Basic Validation
         if (endDate <= startDate)
             throw new InvalidOperationException("End date must be after start date.");
-        
-        
 
         var location = await _db.MobilityLocations.FirstOrDefaultAsync(l => l.Id == mobilityLocationId);
         if (location == null)
             throw new InvalidOperationException($"MobilityLocation with Id={mobilityLocationId} does not exist.");
-        
-        if (location != null && location.AvailableSpots > 0) {
-            location.AvailableSpots -= 1; 
-        }
 
-        // 2. Overlap Check
-        // A spot is occupied if an existing reservation overlaps with the requested range.
+        if (location.AvailableSpots > 0)
+            location.AvailableSpots -= 1;
+
         var overlappingCount = await _db.Reservations.CountAsync(r =>
             r.MobilityLocationId == mobilityLocationId &&
-            r.StartDate < endDate && 
+            r.StartDate < endDate &&
             r.EndDate > startDate);
 
         if (overlappingCount >= location.Capacity)
@@ -96,7 +94,8 @@ public class ReservationService : IReservationService
             StartDate          = DateTime.SpecifyKind(startDate, DateTimeKind.Utc),
             EndDate            = DateTime.SpecifyKind(endDate, DateTimeKind.Utc),
             City               = city,
-            Type               = type
+            Type               = type,
+            UserId             = userId
         };
 
         _db.Reservations.Add(reservation);
@@ -116,43 +115,42 @@ public class ReservationService : IReservationService
         int      capacity,
         int      availableSpots,
         DateTime reservationTime,
-        DateTime startDate, // Added
-        DateTime endDate)   // Added
+        DateTime startDate,
+        DateTime endDate,
+        int?     userId = null)
     {
         var normalizedType = string.IsNullOrWhiteSpace(type) ? "unknown" : type.Trim().ToLowerInvariant();
         var normalizedCity = string.IsNullOrWhiteSpace(city) ? "Unknown" : city.Trim();
-    
+
         var location = await _db.MobilityLocations.FirstOrDefaultAsync(l => l.PlaceId == placeId);
 
         if (location is null)
         {
             location = new MobilityLocation
             {
-                PlaceId = placeId,
-                Name = name,
-                Type = normalizedType,
-                City = normalizedCity,
-                Latitude = latitude,
-                Longitude = longitude,
-                Capacity = Math.Max(1, capacity), // Ensure at least 1 spot exists
-                AvailableSpots = availableSpots 
+                PlaceId        = placeId,
+                Name           = name,
+                Type           = normalizedType,
+                City           = normalizedCity,
+                Latitude       = latitude,
+                Longitude      = longitude,
+                Capacity       = Math.Max(1, capacity),
+                AvailableSpots = availableSpots
             };
             _db.MobilityLocations.Add(location);
             await _db.SaveChangesAsync();
         }
 
-        // Instead of decrementing AvailableSpots globally, 
-        // we let InsertAsync check the schedule for this specific time slot.
         return await InsertAsync(
             mobilityLocationId: location.Id,
-            reservationTime: reservationTime,
-            city: normalizedCity,
-            startDate: startDate,
-            endDate: endDate,
-            type: normalizedType);
+            reservationTime:    reservationTime,
+            city:               normalizedCity,
+            startDate:          startDate,
+            endDate:            endDate,
+            type:               normalizedType,
+            userId:             userId);
     }
-
-
+ 
     public async Task<bool> DeleteAsync(int id)
     {
         var reservation = await _db.Reservations.FindAsync(id);
@@ -164,42 +162,33 @@ public class ReservationService : IReservationService
 
         _db.Reservations.Remove(reservation);
         await _db.SaveChangesAsync();
-
         _logger.LogInformation("Deleted Reservation Id={Id}", id);
         return true;
     }
-    
+
     public async Task<int> CleanupExpiredReservationsAsync()
     {
         var now = DateTime.UtcNow;
 
-        // 1. Fetch reservations that have ended
         var expiredReservations = await _db.Reservations
             .Include(r => r.MobilityLocation)
             .Where(r => r.EndDate <= now)
             .ToListAsync();
 
-        if (!expiredReservations.Any())
-        {
-            return 0;
-        }
+        if (!expiredReservations.Any()) return 0;
 
         foreach (var reservation in expiredReservations)
         {
-            _logger.LogInformation("Cleaning up expired reservation Id={ResId} for Location={LocId}", 
+            _logger.LogInformation("Cleaning up expired reservation Id={ResId} for Location={LocId}",
                 reservation.Id, reservation.MobilityLocationId);
 
-            // 2. Add the spot back if the location exists
             if (reservation.MobilityLocation != null)
             {
-                // Ensure we don't exceed the maximum capacity
                 reservation.MobilityLocation.AvailableSpots = Math.Min(
-                    reservation.MobilityLocation.Capacity, 
-                    reservation.MobilityLocation.AvailableSpots + 1
-                );
+                    reservation.MobilityLocation.Capacity,
+                    reservation.MobilityLocation.AvailableSpots + 1);
             }
 
-            // 3. Remove the record
             _db.Reservations.Remove(reservation);
         }
 
