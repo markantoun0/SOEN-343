@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using YourProject.Models;
 
 namespace SUMMS.Api.Domain.Models;
 
@@ -21,6 +22,11 @@ public class Reservation
 
     public string Type { get; set; } = string.Empty;
 
+    public int? UserId { get; set; }
+
     [ForeignKey(nameof(MobilityLocationId))]
     public MobilityLocation? MobilityLocation { get; set; }
+
+    [ForeignKey(nameof(UserId))]
+    public User? User { get; set; }
 }

@@ -46,6 +46,14 @@ public class ReservationsController : ControllerBase
         return Ok(new { success = true, count = reservations.Count, reservations });
     }
 
+    [HttpGet("by-user/{userId:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByUser(int userId)
+    {
+        var reservations = (await _reservationService.GetByUserIdAsync(userId)).ToList();
+        return Ok(new { success = true, count = reservations.Count, reservations });
+    }
+
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -59,11 +67,12 @@ public class ReservationsController : ControllerBase
         {
             var reservation = await _reservationService.InsertAsync(
                 mobilityLocationId: request.MobilityLocationId,
-                reservationTime: request.ReservationTime,
-                city: request.City,
-                startDate: request.StartDate,
-                endDate: request.EndDate,
-                type: request.Type);
+                reservationTime:    request.ReservationTime,
+                city:               request.City,
+                startDate:          request.StartDate,
+                endDate:            request.EndDate,
+                type:               request.Type,
+                userId:             request.UserId);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -72,7 +81,6 @@ public class ReservationsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Thrown when the linked MobilityLocation does not exist
             return NotFound(new { success = false, message = ex.Message });
         }
     }
@@ -84,7 +92,7 @@ public class ReservationsController : ControllerBase
     public async Task<IActionResult> ReserveFromLocation([FromBody] ReserveFromLocationRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.PlaceId) ||
-            string.IsNullOrWhiteSpace(request.Name) ||
+            string.IsNullOrWhiteSpace(request.Name)    ||
             string.IsNullOrWhiteSpace(request.Type))
         {
             return BadRequest(new { success = false, message = "PlaceId, Name, and Type are required." });
@@ -93,17 +101,18 @@ public class ReservationsController : ControllerBase
         try
         {
             var reservation = await _reservationService.ReserveFromLocationAsync(
-                placeId: request.PlaceId,
-                name: request.Name,
-                type: request.Type,
-                city: request.City,
-                latitude: request.Latitude,
-                longitude: request.Longitude,
-                capacity: request.Capacity,
-                startDate: request.StartDate, 
-                endDate: request.EndDate,
-                availableSpots: request.AvailableSpots,
-                reservationTime: request.ReservationTime);
+                placeId:         request.PlaceId,
+                name:            request.Name,
+                type:            request.Type,
+                city:            request.City,
+                latitude:        request.Latitude,
+                longitude:       request.Longitude,
+                capacity:        request.Capacity,
+                startDate:       request.StartDate,
+                endDate:         request.EndDate,
+                availableSpots:  request.AvailableSpots,
+                reservationTime: request.ReservationTime,
+                userId:          request.UserId);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -135,26 +144,23 @@ public class CreateReservationRequest
     public DateTime ReservationTime    { get; set; } = DateTime.UtcNow;
     public string   City               { get; set; } = string.Empty;
     public string   Type               { get; set; } = string.Empty;
-    
-    public DateTime StartDate { get; set; } 
-    
-    public DateTime EndDate { get; set; }
+    public DateTime StartDate          { get; set; }
+    public DateTime EndDate            { get; set; }
+    public int?     UserId             { get; set; }
 }
 
 public class ReserveFromLocationRequest
 {
-    public string PlaceId { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string Type { get; set; } = string.Empty;
-    public string City { get; set; } = string.Empty;
-    public double Latitude { get; set; }
-    public double Longitude { get; set; }
-    public int Capacity { get; set; }
-    public int AvailableSpots { get; set; }
+    public string   PlaceId         { get; set; } = string.Empty;
+    public string   Name            { get; set; } = string.Empty;
+    public string   Type            { get; set; } = string.Empty;
+    public string   City            { get; set; } = string.Empty;
+    public double   Latitude        { get; set; }
+    public double   Longitude       { get; set; }
+    public int      Capacity        { get; set; }
+    public int      AvailableSpots  { get; set; }
     public DateTime ReservationTime { get; set; } = DateTime.UtcNow;
-    
-    public DateTime StartDate { get; set; } 
-    
-    public DateTime EndDate { get; set; }
-    
+    public DateTime StartDate       { get; set; }
+    public DateTime EndDate         { get; set; }
+    public int?     UserId          { get; set; }
 }

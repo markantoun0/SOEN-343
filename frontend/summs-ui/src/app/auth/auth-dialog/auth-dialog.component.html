@@ -1,0 +1,67 @@
+﻿<div class="dialog-backdrop" (click)="closeOnBackdrop($event)">
+  <div class="dialog-box" role="dialog" aria-modal="true">
+
+    <!-- Tabs -->
+    <div class="dialog-tabs">
+      <button
+        class="tab-btn"
+        [class.active]="mode() === 'login'"
+        (click)="switchMode('login')">
+        Sign In
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="mode() === 'signup'"
+        (click)="switchMode('signup')">
+        Sign Up
+      </button>
+      <button class="close-btn" (click)="auth.closeDialog()" aria-label="Close">✕</button>
+    </div>
+
+    <!-- Form -->
+    <form class="dialog-form" (ngSubmit)="submit()" #f="ngForm">
+
+      @if (mode() === 'signup') {
+        <label class="field">
+          <span>Full Name</span>
+          <input type="text" [(ngModel)]="name" name="name"
+                 placeholder="Jane Doe" autocomplete="name" required />
+        </label>
+      }
+
+      <label class="field">
+        <span>Email</span>
+        <input type="email" [(ngModel)]="email" name="email"
+               placeholder="you@example.com" autocomplete="email" required />
+      </label>
+
+      <label class="field">
+        <span>Password</span>
+        <input type="password" [(ngModel)]="password" name="password"
+               placeholder="••••••••" autocomplete="current-password" required />
+      </label>
+
+      @if (errorMsg()) {
+        <p class="error-msg">{{ errorMsg() }}</p>
+      }
+
+      <button type="submit" class="submit-btn" [disabled]="loading()">
+        @if (loading()) { Processing… }
+        @else if (mode() === 'login') { Sign In }
+        @else { Create Account }
+      </button>
+
+    </form>
+
+    <p class="switch-hint">
+      @if (mode() === 'login') {
+        Don't have an account?
+        <button type="button" class="link-btn" (click)="switchMode('signup')">Sign up</button>
+      } @else {
+        Already have an account?
+        <button type="button" class="link-btn" (click)="switchMode('login')">Sign in</button>
+      }
+    </p>
+
+  </div>
+</div>
