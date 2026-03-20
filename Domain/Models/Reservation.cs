@@ -22,6 +22,16 @@ public class Reservation
 
     public string Type { get; set; } = string.Empty;
 
+    public ReservationStatus Status { get; set; } = ReservationStatus.Active;
+
+    public bool IsDeleted { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
+
+    public string? DeleteReason { get; set; }
+
+    public DateTime? ExpirationWarningSentAt { get; set; }
+
     public int? UserId { get; set; }
 
     [ForeignKey(nameof(MobilityLocationId))]

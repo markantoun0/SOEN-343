@@ -1,5 +1,4 @@
-﻿﻿﻿using Microsoft.AspNetCore.Mvc;
-using SUMMS.Api.Domain.Models;
+using Microsoft.AspNetCore.Mvc;
 using SUMMS.Api.Services.Interfaces;
 
 namespace SUMMS.Api.Controllers;
@@ -8,30 +7,24 @@ namespace SUMMS.Api.Controllers;
 [Route("api/[controller]")]
 public class MobilityController : ControllerBase
 {
-    private readonly IBixiService _bixiService;
-    private readonly IMobilityService _mobilityService;
+    private readonly IReadOnlyDictionary<MobilityProvider, IMobilityProviderAdapter> _providerAdapters;
     private readonly IMobilityLocationService _locationService;
     private readonly ILogger<MobilityController> _logger;
 
-    private const double DefaultLat    = 45.5017;
-    private const double DefaultLng    = -73.5673;
-    private const int    DefaultRadius = 8000;
+    private const double DefaultLat = 45.5017;
+    private const double DefaultLng = -73.5673;
+    private const int DefaultRadius = 8000;
 
     public MobilityController(
-        IBixiService bixiService,
-        IMobilityService mobilityService,
+        IEnumerable<IMobilityProviderAdapter> providerAdapters,
         IMobilityLocationService locationService,
         ILogger<MobilityController> logger)
     {
-        _bixiService     = bixiService;
-        _mobilityService = mobilityService;
+        _providerAdapters = providerAdapters.ToDictionary(adapter => adapter.Provider);
         _locationService = locationService;
-        _logger          = logger;
+        _logger = logger;
     }
 
-    // ── Live external feeds ───────────────────────────────────────────────────
-
-    /// <summary>Returns all BIXI stations + nearby parking for Montréal and Laval.</summary>
     [HttpGet("montreal-laval")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
@@ -40,23 +33,25 @@ public class MobilityController : ControllerBase
     {
         try
         {
-            var bixiTask         = _bixiService.GetStationsAsync();
-            var parkingMtlTask   = _mobilityService.GetNearbyMobilityLocationsAsync(45.5017, -73.5673, 10000);
-            var parkingLavalTask = _mobilityService.GetNearbyMobilityLocationsAsync(45.6066, -73.7124, 8000);
+            var bixiTask = GetAdapter(MobilityProvider.Bixi)
+                .GetLocationsAsync(new MobilityProviderRequest(DefaultLat, DefaultLng));
+            var parkingMtlTask = GetAdapter(MobilityProvider.GooglePlaces)
+                .GetLocationsAsync(new MobilityProviderRequest(45.5017, -73.5673, 10000));
+            var parkingLavalTask = GetAdapter(MobilityProvider.GooglePlaces)
+                .GetLocationsAsync(new MobilityProviderRequest(45.6066, -73.7124, 8000));
 
             await Task.WhenAll(bixiTask, parkingMtlTask, parkingLavalTask);
 
-            var bixi    = (await bixiTask).ToList();
+            var bixi = (await bixiTask).ToList();
             var parking = (await parkingMtlTask)
-                            .Where(l => l.Type == "parking").Take(15)
-                            .Concat((await parkingLavalTask)
-                                .Where(l => l.Type == "parking").Take(15))
-                            .DistinctBy(l => l.PlaceId)
-                            .ToList();
+                .Where(l => l.Type == "parking").Take(15)
+                .Concat((await parkingLavalTask)
+                    .Where(l => l.Type == "parking").Take(15))
+                .DistinctBy(l => l.PlaceId)
+                .ToList();
 
             var all = bixi.Concat(parking).ToList();
 
-            // Overlay persisted DB values (after reservations) so refresh keeps updated spot counts.
             var storedByPlaceId = (await _locationService.GetAllAsync())
                 .GroupBy(l => l.PlaceId)
                 .ToDictionary(g => g.Key, g => g.First());
@@ -71,7 +66,14 @@ public class MobilityController : ControllerBase
                 location.City = string.IsNullOrWhiteSpace(stored.City) ? location.City : stored.City;
             }
 
-            return Ok(new { success = true, count = all.Count, bixiCount = bixi.Count, parkingCount = parking.Count, locations = all });
+            return Ok(new
+            {
+                success = true,
+                count = all.Count,
+                bixiCount = bixi.Count,
+                parkingCount = parking.Count,
+                locations = all
+            });
         }
         catch (HttpRequestException ex)
         {
@@ -85,19 +87,21 @@ public class MobilityController : ControllerBase
         }
     }
 
-    /// <summary>Returns parking locations near custom coordinates (Google Places).</summary>
     [HttpGet("nearby")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetNearby(
-        [FromQuery] double lat    = DefaultLat,
-        [FromQuery] double lng    = DefaultLng,
-        [FromQuery] int    radius = DefaultRadius)
+        [FromQuery] double lat = DefaultLat,
+        [FromQuery] double lng = DefaultLng,
+        [FromQuery] int radius = DefaultRadius)
     {
         try
         {
-            var locations = (await _mobilityService.GetNearbyMobilityLocationsAsync(lat, lng, radius)).ToList();
+            var locations = (await GetAdapter(MobilityProvider.GooglePlaces)
+                    .GetLocationsAsync(new MobilityProviderRequest(lat, lng, radius)))
+                .ToList();
+
             return Ok(new { success = true, count = locations.Count, locations });
         }
         catch (HttpRequestException ex)
@@ -112,9 +116,6 @@ public class MobilityController : ControllerBase
         }
     }
 
-    // ── Database CRUD (via MobilityLocationService) ───────────────────────────
-
-    /// <summary>Retrieve all stored locations, optionally filtered by ?type=bike|parking</summary>
     [HttpGet("stored")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStoredLocations([FromQuery] string? type = null)
@@ -123,7 +124,6 @@ public class MobilityController : ControllerBase
         return Ok(new { success = true, count = locations.Count, locations });
     }
 
-    /// <summary>Retrieve a single stored location by its database ID</summary>
     [HttpGet("stored/{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -136,7 +136,6 @@ public class MobilityController : ControllerBase
         return Ok(new { success = true, location });
     }
 
-    /// <summary>Insert a new location with all values into the database</summary>
     [HttpPost("stored")]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -146,13 +145,13 @@ public class MobilityController : ControllerBase
             return BadRequest(new { success = false, message = "Name and Type are required." });
 
         var location = await _locationService.InsertAsync(
-            placeId:        request.PlaceId,
-            name:           request.Name,
-            type:           request.Type,
-            city:           request.City,
-            latitude:       request.Latitude,
-            longitude:      request.Longitude,
-            capacity:       request.Capacity,
+            placeId: request.PlaceId,
+            name: request.Name,
+            type: request.Type,
+            city: request.City,
+            latitude: request.Latitude,
+            longitude: request.Longitude,
+            capacity: request.Capacity,
             availableSpots: request.AvailableSpots);
 
         return CreatedAtAction(
@@ -161,13 +160,11 @@ public class MobilityController : ControllerBase
             new { success = true, location });
     }
 
-    /// <summary>Update available spots for a stored location</summary>
     [HttpPatch("stored/{id:int}/spots")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateSpots(int id, [FromBody] UpdateSpotsRequest request)
     {
-        
         var location = await _locationService.UpdateAvailableSpotsAsync(id, request.AvailableSpots);
         if (location is null)
             return NotFound(new { success = false, message = $"No location found with Id={id}." });
@@ -175,7 +172,6 @@ public class MobilityController : ControllerBase
         return Ok(new { success = true, location });
     }
 
-    /// <summary>Delete a stored location by ID</summary>
     [HttpDelete("stored/{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -187,20 +183,26 @@ public class MobilityController : ControllerBase
 
         return Ok(new { success = true, message = $"Location Id={id} deleted." });
     }
-}
 
-// ── Request DTOs ──────────────────────────────────────────────────────────────
+    private IMobilityProviderAdapter GetAdapter(MobilityProvider provider)
+    {
+        if (_providerAdapters.TryGetValue(provider, out var adapter))
+            return adapter;
+
+        throw new InvalidOperationException($"No adapter is registered for mobility provider {provider}.");
+    }
+}
 
 public class CreateLocationRequest
 {
-    public string PlaceId        { get; set; } = string.Empty;
-    public string Name           { get; set; } = string.Empty;
-    public string Type           { get; set; } = string.Empty;
-    public string City           { get; set; } = string.Empty;
-    public double Latitude       { get; set; }
-    public double Longitude      { get; set; }
-    public int    Capacity       { get; set; }
-    public int    AvailableSpots { get; set; }
+    public string PlaceId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public int Capacity { get; set; }
+    public int AvailableSpots { get; set; }
 }
 
 public class UpdateSpotsRequest

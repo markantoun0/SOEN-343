@@ -23,4 +23,11 @@
       <_ContentIncludedByDefault Remove="frontend\summs-ui\dist\summs-ui\prerendered-routes.json" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Remove="SUMMS.Api.Tests\\**\\*.cs" />
+      <Content Remove="SUMMS.Api.Tests\\**\\*" />
+      <EmbeddedResource Remove="SUMMS.Api.Tests\\**\\*" />
+      <None Remove="SUMMS.Api.Tests\\**\\*" />
+    </ItemGroup>
+
 </Project>

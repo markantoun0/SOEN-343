@@ -20,6 +20,13 @@ namespace SUMMS.Api.Data
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.Entity<Reservation>()
+                .Property(r => r.Status)
+                .HasConversion<string>();
+
+            modelBuilder.Entity<Reservation>()
+                .HasIndex(r => new { r.MobilityLocationId, r.Status, r.IsDeleted });
+
+            modelBuilder.Entity<Reservation>()
                 .HasOne(r => r.User)
                 .WithMany()
                 .HasForeignKey(r => r.UserId)
