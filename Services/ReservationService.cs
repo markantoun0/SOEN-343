@@ -1,6 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SUMMS.Api.Data;
 using SUMMS.Api.Domain.Models;
+using SUMMS.Api.Patterns.Observer;
 using SUMMS.Api.Services.Interfaces;
 
 namespace SUMMS.Api.Services;
@@ -9,20 +10,25 @@ public class ReservationService : IReservationService
 {
     private readonly AppDbContext _db;
     private readonly ILogger<ReservationService> _logger;
+    private readonly IParkingEventPublisher _eventPublisher;
 
-    public ReservationService(AppDbContext db, ILogger<ReservationService> logger)
+    public ReservationService(
+        AppDbContext db,
+        ILogger<ReservationService> logger,
+        IParkingEventPublisher eventPublisher)
     {
-        _db     = db;
+        _db = db;
         _logger = logger;
+        _eventPublisher = eventPublisher;
     }
 
     public async Task<IEnumerable<Reservation>> GetAllAsync(string? type = null, string? city = null)
     {
         _logger.LogInformation("Retrieving reservations (type={Type}, city={City})", type ?? "any", city ?? "any");
 
-        var query = _db.Reservations
-                       .Include(r => r.MobilityLocation)
-                       .AsQueryable();
+        var query = ActiveReservations()
+            .Include(r => r.MobilityLocation)
+            .AsQueryable();
 
         if (!string.IsNullOrEmpty(type))
             query = query.Where(r => r.Type == type);
@@ -37,87 +43,92 @@ public class ReservationService : IReservationService
     {
         _logger.LogInformation("Retrieving reservation Id={Id}", id);
         return await _db.Reservations
-                        .Include(r => r.MobilityLocation)
-                        .FirstOrDefaultAsync(r => r.Id == id);
+            .Include(r => r.MobilityLocation)
+            .FirstOrDefaultAsync(r => r.Id == id);
     }
 
     public async Task<IEnumerable<Reservation>> GetByLocationIdAsync(int mobilityLocationId)
     {
         _logger.LogInformation("Retrieving reservations for MobilityLocationId={Id}", mobilityLocationId);
-        return await _db.Reservations
-                        .Include(r => r.MobilityLocation)
-                        .Where(r => r.MobilityLocationId == mobilityLocationId)
-                        .ToListAsync();
+        return await ActiveReservations()
+            .Include(r => r.MobilityLocation)
+            .Where(r => r.MobilityLocationId == mobilityLocationId)
+            .ToListAsync();
     }
 
     public async Task<IEnumerable<Reservation>> GetByUserIdAsync(int userId)
     {
         _logger.LogInformation("Retrieving reservations for UserId={Id}", userId);
         return await _db.Reservations
-                        .Include(r => r.MobilityLocation)
-                        .Where(r => r.UserId == userId)
-                        .OrderByDescending(r => r.StartDate)
-                        .ToListAsync();
+            .Include(r => r.MobilityLocation)
+            .Where(r => r.UserId == userId)
+            .OrderByDescending(r => r.StartDate)
+            .ToListAsync();
     }
 
     public async Task<Reservation> InsertAsync(
-        int      mobilityLocationId,
+        int mobilityLocationId,
         DateTime reservationTime,
-        string   city,
+        string city,
         DateTime startDate,
         DateTime endDate,
-        string   type,
-        int?     userId = null)
+        string type,
+        int? userId = null)
     {
         if (endDate <= startDate)
             throw new InvalidOperationException("End date must be after start date.");
 
         var location = await _db.MobilityLocations.FirstOrDefaultAsync(l => l.Id == mobilityLocationId);
-        if (location == null)
+        if (location is null)
             throw new InvalidOperationException($"MobilityLocation with Id={mobilityLocationId} does not exist.");
 
-        if (location.AvailableSpots > 0)
-            location.AvailableSpots -= 1;
-
-        var overlappingCount = await _db.Reservations.CountAsync(r =>
+        var overlappingCount = await ActiveReservations().CountAsync(r =>
             r.MobilityLocationId == mobilityLocationId &&
             r.StartDate < endDate &&
             r.EndDate > startDate);
 
-        if (overlappingCount >= location.Capacity)
+        if (overlappingCount >= location.Capacity || location.AvailableSpots <= 0)
             throw new InvalidOperationException("No spots available for the selected time range.");
+
+        location.AvailableSpots -= 1;
 
         var reservation = new Reservation
         {
             MobilityLocationId = mobilityLocationId,
-            ReservationTime    = DateTime.SpecifyKind(reservationTime, DateTimeKind.Utc),
-            StartDate          = DateTime.SpecifyKind(startDate, DateTimeKind.Utc),
-            EndDate            = DateTime.SpecifyKind(endDate, DateTimeKind.Utc),
-            City               = city,
-            Type               = type,
-            UserId             = userId
+            ReservationTime = DateTime.SpecifyKind(reservationTime, DateTimeKind.Utc),
+            StartDate = DateTime.SpecifyKind(startDate, DateTimeKind.Utc),
+            EndDate = DateTime.SpecifyKind(endDate, DateTimeKind.Utc),
+            City = city,
+            Type = type,
+            Status = ReservationStatus.Active,
+            UserId = userId
         };
 
         _db.Reservations.Add(reservation);
         await _db.SaveChangesAsync();
 
         await _db.Entry(reservation).Reference(r => r.MobilityLocation).LoadAsync();
+        await PublishReservationEventAsync(
+            ParkingEventType.ReservationCreated,
+            reservation,
+            $"Reservation {reservation.Id} created for location {reservation.MobilityLocationId}.");
+
         return reservation;
     }
 
     public async Task<Reservation> ReserveFromLocationAsync(
-        string   placeId,
-        string   name,
-        string   type,
-        string   city,
-        double   latitude,
-        double   longitude,
-        int      capacity,
-        int      availableSpots,
+        string placeId,
+        string name,
+        string type,
+        string city,
+        double latitude,
+        double longitude,
+        int capacity,
+        int availableSpots,
         DateTime reservationTime,
         DateTime startDate,
         DateTime endDate,
-        int?     userId = null)
+        int? userId = null)
     {
         var normalizedType = string.IsNullOrWhiteSpace(type) ? "unknown" : type.Trim().ToLowerInvariant();
         var normalizedCity = string.IsNullOrWhiteSpace(city) ? "Unknown" : city.Trim();
@@ -128,14 +139,14 @@ public class ReservationService : IReservationService
         {
             location = new MobilityLocation
             {
-                PlaceId        = placeId,
-                Name           = name,
-                Type           = normalizedType,
-                City           = normalizedCity,
-                Latitude       = latitude,
-                Longitude      = longitude,
-                Capacity       = Math.Max(1, capacity),
-                AvailableSpots = availableSpots
+                PlaceId = placeId,
+                Name = name,
+                Type = normalizedType,
+                City = normalizedCity,
+                Latitude = latitude,
+                Longitude = longitude,
+                Capacity = Math.Max(1, capacity),
+                AvailableSpots = Math.Max(0, availableSpots)
             };
             _db.MobilityLocations.Add(location);
             await _db.SaveChangesAsync();
@@ -143,56 +154,159 @@ public class ReservationService : IReservationService
 
         return await InsertAsync(
             mobilityLocationId: location.Id,
-            reservationTime:    reservationTime,
-            city:               normalizedCity,
-            startDate:          startDate,
-            endDate:            endDate,
-            type:               normalizedType,
-            userId:             userId);
+            reservationTime: reservationTime,
+            city: normalizedCity,
+            startDate: startDate,
+            endDate: endDate,
+            type: normalizedType,
+            userId: userId);
     }
- 
-    public async Task<bool> DeleteAsync(int id)
+
+    public async Task<bool> DeleteAsync(int id, string? deleteReason = null)
     {
-        var reservation = await _db.Reservations.FindAsync(id);
+        var reservation = await _db.Reservations
+            .Include(r => r.MobilityLocation)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
         if (reservation is null)
         {
             _logger.LogWarning("Delete: Reservation Id={Id} not found", id);
             return false;
         }
 
-        _db.Reservations.Remove(reservation);
+        if (!CanReleaseSpot(reservation))
+        {
+            _logger.LogInformation(
+                "Delete ignored for Reservation Id={Id} because it is already {Status}",
+                reservation.Id,
+                reservation.Status);
+            return true;
+        }
+
+        RestoreSpot(reservation);
+        MarkReservationInactive(reservation, ReservationStatus.Cancelled, deleteReason ?? "Cancelled by user");
+
         await _db.SaveChangesAsync();
-        _logger.LogInformation("Deleted Reservation Id={Id}", id);
+        await PublishReservationEventAsync(
+            ParkingEventType.ReservationCancelled,
+            reservation,
+            $"Reservation {reservation.Id} cancelled.");
+        await PublishParkingSpotAvailableAsync(reservation);
+
+        _logger.LogInformation("Soft-deleted Reservation Id={Id}", id);
         return true;
     }
 
     public async Task<int> CleanupExpiredReservationsAsync()
     {
         var now = DateTime.UtcNow;
+        var warningThreshold = now.AddMinutes(10);
 
-        var expiredReservations = await _db.Reservations
+        var expiringSoonReservations = await ActiveReservations()
+            .Include(r => r.MobilityLocation)
+            .Where(r => r.EndDate > now &&
+                        r.EndDate <= warningThreshold &&
+                        r.ExpirationWarningSentAt == null)
+            .ToListAsync();
+
+        foreach (var reservation in expiringSoonReservations)
+        {
+            reservation.ExpirationWarningSentAt = now;
+            await PublishReservationEventAsync(
+                ParkingEventType.ReservationAboutToExpire,
+                reservation,
+                $"Reservation {reservation.Id} will expire at {reservation.EndDate:u}.");
+        }
+
+        var expiredReservations = await ActiveReservations()
             .Include(r => r.MobilityLocation)
             .Where(r => r.EndDate <= now)
             .ToListAsync();
 
-        if (!expiredReservations.Any()) return 0;
+        foreach (var reservation in expiredReservations)
+        {
+            _logger.LogInformation(
+                "Cleaning up expired reservation Id={ReservationId} for Location={LocationId}",
+                reservation.Id,
+                reservation.MobilityLocationId);
+
+            RestoreSpot(reservation);
+            MarkReservationInactive(reservation, ReservationStatus.Expired, "Expired automatically");
+        }
+
+        if (!expiringSoonReservations.Any() && !expiredReservations.Any())
+            return 0;
+
+        await _db.SaveChangesAsync();
 
         foreach (var reservation in expiredReservations)
         {
-            _logger.LogInformation("Cleaning up expired reservation Id={ResId} for Location={LocId}",
-                reservation.Id, reservation.MobilityLocationId);
-
-            if (reservation.MobilityLocation != null)
-            {
-                reservation.MobilityLocation.AvailableSpots = Math.Min(
-                    reservation.MobilityLocation.Capacity,
-                    reservation.MobilityLocation.AvailableSpots + 1);
-            }
-
-            _db.Reservations.Remove(reservation);
+            await PublishReservationEventAsync(
+                ParkingEventType.ReservationExpired,
+                reservation,
+                $"Reservation {reservation.Id} expired.");
+            await PublishParkingSpotAvailableAsync(reservation);
         }
 
-        await _db.SaveChangesAsync();
         return expiredReservations.Count;
+    }
+
+    private IQueryable<Reservation> ActiveReservations()
+    {
+        return _db.Reservations.Where(r => !r.IsDeleted && r.Status == ReservationStatus.Active);
+    }
+
+    private static bool CanReleaseSpot(Reservation reservation)
+    {
+        return !reservation.IsDeleted && reservation.Status == ReservationStatus.Active;
+    }
+
+    private static void RestoreSpot(Reservation reservation)
+    {
+        if (reservation.MobilityLocation is null)
+            return;
+
+        reservation.MobilityLocation.AvailableSpots = Math.Min(
+            reservation.MobilityLocation.Capacity,
+            reservation.MobilityLocation.AvailableSpots + 1);
+    }
+
+    private static void MarkReservationInactive(
+        Reservation reservation,
+        ReservationStatus status,
+        string reason)
+    {
+        reservation.Status = status;
+        reservation.IsDeleted = true;
+        reservation.DeletedAt = DateTime.UtcNow;
+        reservation.DeleteReason = reason;
+    }
+
+    private Task PublishReservationEventAsync(
+        ParkingEventType eventType,
+        Reservation reservation,
+        string message)
+    {
+        return _eventPublisher.PublishAsync(new ParkingEvent(
+            eventType,
+            reservation.Id,
+            reservation.MobilityLocationId,
+            reservation.UserId,
+            message,
+            DateTime.UtcNow));
+    }
+
+    private Task PublishParkingSpotAvailableAsync(Reservation reservation)
+    {
+        if (reservation.MobilityLocation is null)
+            return Task.CompletedTask;
+
+        return _eventPublisher.PublishAsync(new ParkingEvent(
+            ParkingEventType.ParkingSpotAvailable,
+            reservation.Id,
+            reservation.MobilityLocationId,
+            reservation.UserId,
+            $"{reservation.MobilityLocation.Name} now has {reservation.MobilityLocation.AvailableSpots} available spots.",
+            DateTime.UtcNow));
     }
 }

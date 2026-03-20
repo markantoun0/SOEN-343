@@ -1,43 +1,57 @@
-﻿using Microsoft.Extensions.Hosting;
+using SUMMS.Api.Patterns.Command;
 using SUMMS.Api.Services.Interfaces;
-using System.Threading;
 
 namespace SUMMS.Api.Services;
 
-public class CleanupHostedService : IHostedService, IDisposable
+public class CleanupHostedService : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private Timer? _timer;
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
 
-    public CleanupHostedService(IServiceProvider serviceProvider)
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<CleanupHostedService> _logger;
+
+    public CleanupHostedService(
+        IServiceScopeFactory scopeFactory,
+        ILogger<CleanupHostedService> logger)
     {
-        _serviceProvider = serviceProvider;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        Task.Run(() => CleanupAsync());
-        
-        _timer = new Timer(CleanupAsync, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        using var timer = new PeriodicTimer(Interval);
 
-        return Task.CompletedTask;
+        await ProcessReservationsAsync(stoppingToken);
+
+        while (!stoppingToken.IsCancellationRequested &&
+               await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            await ProcessReservationsAsync(stoppingToken);
+        }
     }
 
-    private async void CleanupAsync(object? state = null)
+    private async Task ProcessReservationsAsync(CancellationToken cancellationToken)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var reservationService = scope.ServiceProvider.GetRequiredService<IReservationService>();
-        await reservationService.CleanupExpiredReservationsAsync();
-    }
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var reservationService = scope.ServiceProvider.GetRequiredService<IReservationService>();
+            var commandInvoker = scope.ServiceProvider.GetRequiredService<ReservationCommandInvoker>();
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        _timer?.Change(Timeout.Infinite, 0);
-        return Task.CompletedTask;
-    }
+            var expiredReservations = await commandInvoker.ExecuteAsync(
+                new CleanupExpiredReservationsCommand(reservationService),
+                cancellationToken);
 
-    public void Dispose()
-    {
-        _timer?.Dispose();
+            if (expiredReservations > 0)
+                _logger.LogInformation("Reservation lifecycle sweep expired {Count} reservations", expiredReservations);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reservation lifecycle sweep failed");
+        }
     }
 }

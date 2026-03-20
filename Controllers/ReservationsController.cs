@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using SUMMS.Api.Patterns.Command;
 using SUMMS.Api.Services.Interfaces;
 
 namespace SUMMS.Api.Controllers;
@@ -8,12 +9,17 @@ namespace SUMMS.Api.Controllers;
 public class ReservationsController : ControllerBase
 {
     private readonly IReservationService _reservationService;
+    private readonly ReservationCommandInvoker _commandInvoker;
     private readonly ILogger<ReservationsController> _logger;
 
-    public ReservationsController(IReservationService reservationService, ILogger<ReservationsController> logger)
+    public ReservationsController(
+        IReservationService reservationService,
+        ReservationCommandInvoker commandInvoker,
+        ILogger<ReservationsController> logger)
     {
         _reservationService = reservationService;
-        _logger             = logger;
+        _commandInvoker = commandInvoker;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -65,14 +71,17 @@ public class ReservationsController : ControllerBase
 
         try
         {
-            var reservation = await _reservationService.InsertAsync(
-                mobilityLocationId: request.MobilityLocationId,
-                reservationTime:    request.ReservationTime,
-                city:               request.City,
-                startDate:          request.StartDate,
-                endDate:            request.EndDate,
-                type:               request.Type,
-                userId:             request.UserId);
+            var command = new CreateReservationCommand(
+                _reservationService,
+                request.MobilityLocationId,
+                request.ReservationTime,
+                request.City,
+                request.StartDate,
+                request.EndDate,
+                request.Type,
+                request.UserId);
+
+            var reservation = await _commandInvoker.ExecuteAsync(command);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -81,6 +90,7 @@ public class ReservationsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Reservation creation failed");
             return NotFound(new { success = false, message = ex.Message });
         }
     }
@@ -92,7 +102,7 @@ public class ReservationsController : ControllerBase
     public async Task<IActionResult> ReserveFromLocation([FromBody] ReserveFromLocationRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.PlaceId) ||
-            string.IsNullOrWhiteSpace(request.Name)    ||
+            string.IsNullOrWhiteSpace(request.Name) ||
             string.IsNullOrWhiteSpace(request.Type))
         {
             return BadRequest(new { success = false, message = "PlaceId, Name, and Type are required." });
@@ -100,19 +110,22 @@ public class ReservationsController : ControllerBase
 
         try
         {
-            var reservation = await _reservationService.ReserveFromLocationAsync(
-                placeId:         request.PlaceId,
-                name:            request.Name,
-                type:            request.Type,
-                city:            request.City,
-                latitude:        request.Latitude,
-                longitude:       request.Longitude,
-                capacity:        request.Capacity,
-                startDate:       request.StartDate,
-                endDate:         request.EndDate,
-                availableSpots:  request.AvailableSpots,
-                reservationTime: request.ReservationTime,
-                userId:          request.UserId);
+            var command = new ReserveFromLocationCommand(
+                _reservationService,
+                request.PlaceId,
+                request.Name,
+                request.Type,
+                request.City,
+                request.Latitude,
+                request.Longitude,
+                request.Capacity,
+                request.AvailableSpots,
+                request.ReservationTime,
+                request.StartDate,
+                request.EndDate,
+                request.UserId);
+
+            var reservation = await _commandInvoker.ExecuteAsync(command);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -121,6 +134,7 @@ public class ReservationsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
+            _logger.LogWarning(ex, "Reserve-from-location failed");
             return Conflict(new { success = false, message = ex.Message });
         }
     }
@@ -130,37 +144,39 @@ public class ReservationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(int id)
     {
-        var deleted = await _reservationService.DeleteAsync(id);
+        var command = new DeleteReservationCommand(_reservationService, id, "Cancelled by user");
+        var deleted = await _commandInvoker.ExecuteAsync(command);
+
         if (!deleted)
             return NotFound(new { success = false, message = $"No reservation found with Id={id}." });
 
-        return Ok(new { success = true, message = $"Reservation Id={id} deleted." });
+        return Ok(new { success = true, message = $"Reservation Id={id} cancelled." });
     }
 }
 
 public class CreateReservationRequest
 {
-    public int      MobilityLocationId { get; set; }
-    public DateTime ReservationTime    { get; set; } = DateTime.UtcNow;
-    public string   City               { get; set; } = string.Empty;
-    public string   Type               { get; set; } = string.Empty;
-    public DateTime StartDate          { get; set; }
-    public DateTime EndDate            { get; set; }
-    public int?     UserId             { get; set; }
+    public int MobilityLocationId { get; set; }
+    public DateTime ReservationTime { get; set; } = DateTime.UtcNow;
+    public string City { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public int? UserId { get; set; }
 }
 
 public class ReserveFromLocationRequest
 {
-    public string   PlaceId         { get; set; } = string.Empty;
-    public string   Name            { get; set; } = string.Empty;
-    public string   Type            { get; set; } = string.Empty;
-    public string   City            { get; set; } = string.Empty;
-    public double   Latitude        { get; set; }
-    public double   Longitude       { get; set; }
-    public int      Capacity        { get; set; }
-    public int      AvailableSpots  { get; set; }
+    public string PlaceId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public int Capacity { get; set; }
+    public int AvailableSpots { get; set; }
     public DateTime ReservationTime { get; set; } = DateTime.UtcNow;
-    public DateTime StartDate       { get; set; }
-    public DateTime EndDate         { get; set; }
-    public int?     UserId          { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public int? UserId { get; set; }
 }

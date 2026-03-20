@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SUMMS.Api.Data;
@@ -11,9 +12,11 @@ using SUMMS.Api.Data;
 namespace SUMMS.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260314231238_AddStationsTable")]
+    partial class AddStationsTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -75,20 +78,8 @@ namespace SUMMS.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("DeleteReason")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ExpirationWarningSentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
 
                     b.Property<int>("MobilityLocationId")
                         .HasColumnType("integer");
@@ -99,10 +90,6 @@ namespace SUMMS.Api.Migrations
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasColumnType("text");
@@ -112,11 +99,39 @@ namespace SUMMS.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("MobilityLocationId");
+
                     b.HasIndex("UserId");
 
-                    b.HasIndex("MobilityLocationId", "Status", "IsDeleted");
-
                     b.ToTable("Reservations");
+                });
+
+            modelBuilder.Entity("SUMMS.Api.Domain.Models.Station", b =>
+                {
+                    b.Property<string>("StationId")
+                        .HasColumnType("text")
+                        .HasColumnName("station_id");
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("integer")
+                        .HasColumnName("capacity");
+
+                    b.Property<double>("Lat")
+                        .HasColumnType("double precision")
+                        .HasColumnName("lat");
+
+                    b.Property<double>("Lon")
+                        .HasColumnType("double precision")
+                        .HasColumnName("lon");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.HasKey("StationId");
+
+                    b.ToTable("stations", (string)null);
                 });
 
             modelBuilder.Entity("YourProject.Models.User", b =>
