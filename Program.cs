@@ -57,6 +57,23 @@ builder.Services.AddHostedService<CleanupHostedService>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("StartupMigration");
+
+    try
+    {
+        db.Database.Migrate();
+        logger.LogInformation("Database migrations applied at startup.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogCritical(ex, "Failed to apply database migrations at startup.");
+        throw;
+    }
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
