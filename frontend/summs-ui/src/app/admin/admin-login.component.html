@@ -1,0 +1,43 @@
+﻿<section class="admin-auth-page">
+  <div class="auth-card">
+    <h1>Admin Sign In</h1>
+    <p class="subtitle">Access the admin dashboard.</p>
+
+    <form (ngSubmit)="submit()" class="auth-form">
+      <label>
+        <span>Email</span>
+        <input
+          type="email"
+          name="email"
+          [(ngModel)]="email"
+          placeholder="admin@example.com"
+          autocomplete="email"
+          required />
+      </label>
+
+      <label>
+        <span>Password</span>
+        <input
+          type="password"
+          name="password"
+          [(ngModel)]="password"
+          placeholder="********"
+          autocomplete="current-password"
+          required />
+      </label>
+
+      @if (errorMsg()) {
+        <p class="error">{{ errorMsg() }}</p>
+      }
+
+      <button type="submit" [disabled]="loading()">
+        @if (loading()) { Signing in... } @else { Sign In }
+      </button>
+    </form>
+
+    <p class="switch-link">
+      Need an admin account?
+      <a routerLink="/admin/signup">Create one</a>
+    </p>
+  </div>
+</section>

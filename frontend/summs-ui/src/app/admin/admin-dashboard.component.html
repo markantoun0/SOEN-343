@@ -1,0 +1,12 @@
+﻿<section class="dashboard-page">
+  <div class="dashboard-card">
+    <h1>Admin Dashboard</h1>
+    <p>
+      Welcome back,
+      <strong>{{ auth.currentUser()?.name }}</strong>.
+    </p>
+    <p class="note">You are authenticated as an admin.</p>
+
+    <button type="button" (click)="logout()">Sign Out</button>
+  </div>
+</section>

@@ -12,6 +12,12 @@ ng serve
 
 Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
 
+## Admin authentication pages
+
+- `http://localhost:4200/admin/signup` for admin sign-up
+- `http://localhost:4200/admin/login` for admin sign-in
+- `http://localhost:4200/admin/dashboard` is protected and requires an authenticated admin session
+
 ## Code scaffolding
 
 Angular CLI includes powerful code scaffolding tools. To generate a new component, run:

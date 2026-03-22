@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿﻿using Microsoft.EntityFrameworkCore;
 using SUMMS.Api.Domain.Models;
 using YourProject.Models;
 
@@ -12,12 +12,17 @@ namespace SUMMS.Api.Data
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<Admin> Admins { get; set; }
         public DbSet<MobilityLocation> MobilityLocations { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Admin>()
+                .HasIndex(a => a.Email)
+                .IsUnique();
 
             modelBuilder.Entity<Reservation>()
                 .Property(r => r.Status)

@@ -1,4 +1,4 @@
-﻿import { Component, signal, inject } from '@angular/core';
+﻿﻿﻿import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth.service';
@@ -47,37 +47,35 @@ export class AuthDialogComponent {
 
     this.loading.set(true);
 
-    if (this.mode() === 'signup') {
-      this.auth.signup(this.name.trim(), this.email.trim(), this.password).subscribe({
-        next: (res) => {
-          this.loading.set(false);
-          if (res.success && res.user) {
-            this.auth.setUser(res.user);
-            this.auth.closeDialog();
-          }
-        },
-        error: (err) => {
-          this.loading.set(false);
-          const msg = err?.error?.message ?? 'Sign up failed. Please try again.';
-          this.errorMsg.set(msg);
-        },
-      });
-    } else {
-      this.auth.login(this.email.trim(), this.password).subscribe({
-        next: (res) => {
-          this.loading.set(false);
-          if (res.success && res.user) {
-            this.auth.setUser(res.user);
-            this.auth.closeDialog();
-          }
-        },
-        error: (err) => {
-          this.loading.set(false);
-          const msg = err?.error?.message ?? 'Login failed. Please try again.';
-          this.errorMsg.set(msg);
-        },
-      });
-    }
+    const request$ = this.mode() === 'signup'
+      ? this.auth.signup(this.name.trim(), this.email.trim(), this.password)
+      : this.auth.login(this.email.trim(), this.password);
+
+    request$.subscribe({
+      next: (res) => {
+        this.loading.set(false);
+        const currentUser = this.auth.extractCurrentUser(res, 'user');
+        if (currentUser) {
+          this.auth.setUser(currentUser);
+          this.auth.closeDialog();
+          return;
+        }
+
+        this.errorMsg.set(
+          this.mode() === 'signup'
+            ? 'Sign up failed. Please try again.'
+            : 'Login failed. Please try again.'
+        );
+      },
+      error: (err) => {
+        this.loading.set(false);
+        const fallback = this.mode() === 'signup'
+          ? 'Sign up failed. Please try again.'
+          : 'Login failed. Please try again.';
+        const msg = err?.error?.message ?? fallback;
+        this.errorMsg.set(msg);
+      },
+    });
   }
 
   protected closeOnBackdrop(event: MouseEvent): void {
