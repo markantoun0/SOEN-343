@@ -1,4 +1,4 @@
-﻿import { Injectable, signal } from '@angular/core';
+﻿﻿﻿﻿import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
@@ -6,11 +6,13 @@ export interface CurrentUser {
   id: number;
   name: string;
   email: string;
+  role: 'user' | 'admin';
 }
 
 interface AuthResponse {
   success: boolean;
-  user?: CurrentUser;
+  user?: Omit<CurrentUser, 'role'>;
+  admin?: Omit<CurrentUser, 'role'>;
   message?: string;
 }
 
@@ -28,7 +30,17 @@ export class AuthService {
   private loadFromStorage(): CurrentUser | null {
     try {
       const stored = localStorage.getItem(this.STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+
+      const parsed = JSON.parse(stored) as Partial<CurrentUser>;
+      if (!parsed.id || !parsed.name || !parsed.email) return null;
+
+      return {
+        id: parsed.id,
+        name: parsed.name,
+        email: parsed.email,
+        role: parsed.role === 'admin' ? 'admin' : 'user',
+      };
     } catch {
       return null;
     }
@@ -41,8 +53,30 @@ export class AuthService {
     return this.http.post<AuthResponse>('/api/users/signup', { name, email, password });
   }
 
+  adminSignup(name: string, email: string, password: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>('/api/admins/signup', { name, email, password });
+  }
+
   login(email: string, password: string): Observable<AuthResponse> {
     return this.http.post<AuthResponse>('/api/users/login', { email, password });
+  }
+
+  adminLogin(email: string, password: string): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>('/api/admins/login', { email, password });
+  }
+
+  extractCurrentUser(response: AuthResponse, role: 'user' | 'admin'): CurrentUser | null {
+    if (!response.success) return null;
+
+    if (role === 'user' && response.user) {
+      return { ...response.user, role: 'user' };
+    }
+
+    if (role === 'admin' && response.admin) {
+      return { ...response.admin, role: 'admin' };
+    }
+
+    return null;
   }
 
   setUser(user: CurrentUser): void {

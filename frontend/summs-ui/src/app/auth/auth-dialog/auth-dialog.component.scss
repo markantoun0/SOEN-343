@@ -1,21 +1,31 @@
-﻿.dialog-backdrop {
+﻿﻿:host {
   position: fixed;
   inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.dialog-backdrop {
+  position: absolute;
+  inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  display: grid;
+  place-items: center;
   padding: 1rem;
+  pointer-events: auto;
 }
 
 .dialog-box {
+  position: relative;
   background: #ffffff;
   border-radius: 14px;
   width: 100%;
   max-width: 420px;
+  max-height: min(90vh, 680px);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+  overflow: auto;
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────

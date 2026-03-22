@@ -24,28 +24,37 @@ import { AuthDialogComponent } from './auth/auth-dialog/auth-dialog.component';
           </div>
           @if (menuOpen) {
             <div class="user-dropdown">
-              <a routerLink="/my-reservations" class="dropdown-item" (click)="menuOpen = false">
-                🗓️ My Reservations
-              </a>
+              @if (user.role === 'admin') {
+                <a routerLink="/admin/dashboard" class="dropdown-item" (click)="menuOpen = false">
+                  Admin Dashboard
+                </a>
+              } @else {
+                <a routerLink="/my-reservations" class="dropdown-item" (click)="menuOpen = false">
+                  My Reservations
+                </a>
+              }
               <button class="dropdown-item danger" (click)="logout()">
-                🚪 Sign Out
+                Sign Out
               </button>
             </div>
           }
         } @else {
-          <!-- Logged-out: show login button -->
-          <button class="login-btn" (click)="auth.openDialog()">
-            👤 Sign In
-          </button>
+          <div class="guest-actions">
+            <button class="login-btn" (click)="auth.openDialog()">Sign In</button>
+            <a class="admin-link" routerLink="/admin/login">Admin Login</a>
+            <a class="admin-link" routerLink="/admin/signup">Admin Sign Up</a>
+          </div>
         }
       </div>
     </nav>
 
     <!-- Menu bar -->
     <div class="app-menu">
-      <a routerLink="/map" routerLinkActive="active">🗺 Map</a>
-      @if (auth.currentUser()) {
-        <a routerLink="/my-reservations" routerLinkActive="active">🗓 My Reservations</a>
+      <a routerLink="/map" routerLinkActive="active">Map</a>
+      @if (auth.currentUser()?.role === 'admin') {
+        <a routerLink="/admin/dashboard" routerLinkActive="active">Admin Dashboard</a>
+      } @else if (auth.currentUser()) {
+        <a routerLink="/my-reservations" routerLinkActive="active">My Reservations</a>
       }
     </div>
 

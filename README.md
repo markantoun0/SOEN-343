@@ -104,6 +104,8 @@ cd ../..
 | Method | Route | Description |
 |--------|-------|-------------|
 | `GET` | `/api/ping` | Health check |
+| `POST` | `/api/admins/signup` | Register an admin account (`/api/admins/register` also supported) |
+| `POST` | `/api/admins/login` | Admin login with email/password |
 | `GET` | `/api/mobility/nearby?lat=&lng=&radius=` | Bike + parking near coordinates |
 | `GET` | `/api/mobility/montreal-laval` | Combined results for Montréal & Laval |
 | `GET` | `/api/config/maps-key` | Serves Maps JS key to frontend |

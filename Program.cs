@@ -48,6 +48,7 @@ builder.Services.AddScoped<IMobilityProviderAdapter>(sp => sp.GetRequiredService
 builder.Services.AddScoped<IMobilityLocationService, MobilityLocationService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddScoped<ReservationCommandInvoker>();
 builder.Services.AddScoped<IParkingEventPublisher, ParkingEventPublisher>();

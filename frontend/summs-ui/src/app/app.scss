@@ -40,6 +40,12 @@
   align-items: center;
 }
 
+.guest-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .login-btn {
   background: #f97316;
   color: #fff;
@@ -52,6 +58,18 @@
   transition: background 0.15s;
 
   &:hover { background: #ea6c0a; }
+}
+
+.admin-link {
+  color: #d1d5db;
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  &:hover {
+    color: #ffffff;
+    text-decoration: underline;
+  }
 }
 
 .user-menu {
