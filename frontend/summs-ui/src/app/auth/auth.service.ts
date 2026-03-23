@@ -1,4 +1,4 @@
-﻿﻿﻿﻿import { Injectable, signal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
@@ -7,6 +7,8 @@ export interface CurrentUser {
   name: string;
   email: string;
   role: 'user' | 'admin';
+  preferredCity?: 'montreal' | 'laval';
+  preferredMobilityType?: 'bixi' | 'parking';
 }
 
 interface AuthResponse {
@@ -19,11 +21,14 @@ interface AuthResponse {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly STORAGE_KEY = 'summs_user';
+  private readonly RECOMMENDATION_FLAG_KEY = 'summs_login_recommendation_shown';
 
   /** Reactive signal — any component can read this directly */
   readonly currentUser = signal<CurrentUser | null>(this.loadFromStorage());
   /** Controls whether the auth dialog is visible */
   readonly showDialog = signal(false);
+  /** Login recommendation popup content */
+  readonly recommendationMessage = signal<string | null>(null);
 
   constructor(private http: HttpClient) {}
 
@@ -40,6 +45,11 @@ export class AuthService {
         name: parsed.name,
         email: parsed.email,
         role: parsed.role === 'admin' ? 'admin' : 'user',
+        preferredCity: parsed.preferredCity === 'laval' ? 'laval' : (parsed.preferredCity === 'montreal' ? 'montreal' : undefined),
+        preferredMobilityType:
+          parsed.preferredMobilityType === 'bixi'
+            ? 'bixi'
+            : (parsed.preferredMobilityType === 'parking' ? 'parking' : undefined),
       };
     } catch {
       return null;
@@ -84,8 +94,40 @@ export class AuthService {
     this.currentUser.set(user);
   }
 
+  updateCurrentUserPreferences(
+    preferredCity: 'montreal' | 'laval',
+    preferredMobilityType: 'bixi' | 'parking'
+  ): void {
+    const user = this.currentUser();
+    if (!user) return;
+
+    this.setUser({
+      ...user,
+      preferredCity,
+      preferredMobilityType
+    });
+  }
+
+  canShowLoginRecommendation(): boolean {
+    return !sessionStorage.getItem(this.RECOMMENDATION_FLAG_KEY);
+  }
+
+  markLoginRecommendationShown(): void {
+    sessionStorage.setItem(this.RECOMMENDATION_FLAG_KEY, '1');
+  }
+
+  showRecommendation(message: string): void {
+    this.recommendationMessage.set(message);
+  }
+
+  closeRecommendation(): void {
+    this.recommendationMessage.set(null);
+  }
+
   logout(): void {
     localStorage.removeItem(this.STORAGE_KEY);
+    sessionStorage.removeItem(this.RECOMMENDATION_FLAG_KEY);
+    this.recommendationMessage.set(null);
     this.currentUser.set(null);
   }
 }

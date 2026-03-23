@@ -1,7 +1,8 @@
-﻿﻿﻿import { Component, signal, inject } from '@angular/core';
+﻿import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth.service';
+import { MobilityService } from '../../map/mobility.service';
 
 type DialogMode = 'login' | 'signup';
 
@@ -14,6 +15,7 @@ type DialogMode = 'login' | 'signup';
 })
 export class AuthDialogComponent {
   protected auth = inject(AuthService);
+  private mobilityService = inject(MobilityService);
 
   protected mode = signal<DialogMode>('login');
 
@@ -57,6 +59,7 @@ export class AuthDialogComponent {
         const currentUser = this.auth.extractCurrentUser(res, 'user');
         if (currentUser) {
           this.auth.setUser(currentUser);
+          this.maybeShowRecommendationPopup(currentUser.preferredCity, currentUser.preferredMobilityType);
           this.auth.closeDialog();
           return;
         }
@@ -75,6 +78,39 @@ export class AuthDialogComponent {
         const msg = err?.error?.message ?? fallback;
         this.errorMsg.set(msg);
       },
+    });
+  }
+
+  private maybeShowRecommendationPopup(
+    preferredCity?: 'montreal' | 'laval',
+    preferredMobilityType?: 'bixi' | 'parking'
+  ): void {
+    if (!preferredCity || !preferredMobilityType) return;
+    if (!this.auth.canShowLoginRecommendation()) return;
+
+    this.mobilityService.getMontrealAndLaval().subscribe({
+      next: (res) => {
+        const hasAvailableMatch = (res.locations ?? []).some((location) => {
+          const city = location.city?.trim().toLowerCase();
+          return (
+            location.type === preferredMobilityType &&
+            city === preferredCity &&
+            (location.availableSpots ?? 0) > 0
+          );
+        });
+
+        if (!hasAvailableMatch) return;
+
+        const cityLabel = preferredCity === 'montreal' ? 'Montreal' : 'Laval';
+        const availabilityMessage = preferredMobilityType === 'bixi'
+          ? `BIXIs are currently available in ${cityLabel}. You may reserve one now.`
+          : `Parking is currently available in ${cityLabel}. You may reserve one now.`;
+
+        this.auth.showRecommendation(
+          availabilityMessage
+        );
+        this.auth.markLoginRecommendationShown();
+      }
     });
   }
 
