@@ -36,15 +36,18 @@
         <map-info-window #infoWindow="mapInfoWindow">
           @if (selectedLocation) {
             <div class="info-window">
+              @if (selectedLocation.city) {
+                <p class="title-city">
+                  <span class="city-icon" aria-hidden="true">🏙️</span>
+                  <span>{{ selectedLocation.city }}</span>
+                </p>
+              }
               <strong>{{ selectedLocation.name }}</strong>
               <span class="type-badge" [class]="selectedLocation.type">
                 {{ selectedLocation.type === 'bixi' ? '🚲 BIXI' : '🅿️ Parking' }}
               </span>
               @if (selectedLocation.vicinity) {
                 <p class="vicinity">{{ selectedLocation.vicinity }}</p>
-              }
-              @if (selectedLocation.city) {
-                <p class="city">🏙️ {{ selectedLocation.city }}</p>
               }
               @if (selectedLocation.availableSpots != null) {
                 <p class="spots" [class.low]="selectedLocation.availableSpots <= 5">

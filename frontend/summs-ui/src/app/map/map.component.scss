@@ -94,7 +94,24 @@
   gap: 0.25rem;
   min-width: 180px;
 
-  strong { font-size: 1rem; }
+  strong {
+    font-size: 1rem;
+  }
+
+  .title-city {
+    font-size: 0.84rem;
+    color: #1f2937;
+    margin: 0 0 0.1rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .city-icon {
+    font-size: 0.9rem;
+    line-height: 1;
+  }
 
   .type-badge {
     display: inline-block;
@@ -108,7 +125,6 @@
   }
 
   .vicinity { font-size: 0.8rem; color: #374151; margin: 0.2rem 0 0; }
-  .city { font-size: 0.8rem; color: #1f2937; margin: 0.1rem 0 0; }
   .place-id { font-size: 0.7rem; color: #9ca3af; margin: 0; }
 
   .reserve-btn {
