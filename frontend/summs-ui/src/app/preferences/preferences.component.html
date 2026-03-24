@@ -1,0 +1,40 @@
+<section class="preferences-page">
+  <div class="card">
+    <h1>User Preferences</h1>
+    <p class="subtitle">Set your preferred city and mobility option for personalized recommendations.</p>
+
+    @if (loading()) {
+      <p class="state">Loading preferences...</p>
+    } @else {
+      <form (ngSubmit)="savePreferences()" class="preferences-form">
+        <label class="field">
+          <span>Preferred City</span>
+          <select [(ngModel)]="preferredCity" name="preferredCity" required>
+            <option value="montreal">Montreal</option>
+            <option value="laval">Laval</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Preferred Mobility</span>
+          <select [(ngModel)]="preferredMobilityType" name="preferredMobilityType" required>
+            <option value="bixi">BIXI</option>
+            <option value="parking">Parking</option>
+          </select>
+        </label>
+
+        @if (error()) {
+          <p class="error">{{ error() }}</p>
+        }
+
+        @if (success()) {
+          <p class="success">{{ success() }}</p>
+        }
+
+        <button type="submit" [disabled]="saving()">
+          @if (saving()) { Saving... } @else { Save Preferences }
+        </button>
+      </form>
+    }
+  </div>
+</section>

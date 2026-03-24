@@ -32,6 +32,9 @@ import { AuthDialogComponent } from './auth/auth-dialog/auth-dialog.component';
                 <a routerLink="/my-reservations" class="dropdown-item" (click)="menuOpen = false">
                   My Reservations
                 </a>
+                <a routerLink="/preferences" class="dropdown-item" (click)="menuOpen = false">
+                  Preferences
+                </a>
               }
               <button class="dropdown-item danger" (click)="logout()">
                 Sign Out
@@ -55,6 +58,7 @@ import { AuthDialogComponent } from './auth/auth-dialog/auth-dialog.component';
         <a routerLink="/admin/dashboard" routerLinkActive="active">Admin Dashboard</a>
       } @else if (auth.currentUser()) {
         <a routerLink="/my-reservations" routerLinkActive="active">My Reservations</a>
+        <a routerLink="/preferences" routerLinkActive="active">Preferences</a>
       }
     </div>
 
@@ -66,6 +70,16 @@ import { AuthDialogComponent } from './auth/auth-dialog/auth-dialog.component';
     <!-- Auth dialog overlay -->
     @if (auth.showDialog()) {
       <app-auth-dialog />
+    }
+
+    @if (auth.recommendationMessage(); as recommendation) {
+      <div class="recommendation-overlay" role="dialog" aria-modal="true">
+        <div class="recommendation-box">
+          <h3>Travel Recommendation</h3>
+          <p>{{ recommendation }}</p>
+          <button type="button" (click)="closeRecommendation()">OK</button>
+        </div>
+      </div>
     }
   `,
   styleUrl: './app.scss',
@@ -88,5 +102,9 @@ export class App {
     if (!target.closest('.user-menu') && !target.closest('.user-dropdown')) {
       this.menuOpen = false;
     }
+  }
+
+  protected closeRecommendation(): void {
+    this.auth.closeRecommendation();
   }
 }
