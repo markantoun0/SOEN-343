@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SUMMS.Api.Data;
 using SUMMS.Api.Services.Interfaces;
 using YourProject.Models;
@@ -7,6 +7,18 @@ namespace SUMMS.Api.Services;
 
 public class UserService : IUserService
 {
+    private static readonly HashSet<string> AllowedCities = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "montreal",
+        "laval"
+    };
+
+    private static readonly HashSet<string> AllowedMobilityTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "bixi",
+        "parking"
+    };
+
     private readonly AppDbContext _db;
     private readonly ILogger<UserService> _logger;
 
@@ -49,5 +61,47 @@ public class UserService : IUserService
         if (!PasswordHelper.Verify(password, user.PasswordHash)) return null;
 
         return user;
+    }
+
+    public async Task<User?> GetByIdAsync(int userId)
+    {
+        return await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+    }
+
+    public async Task<bool> UpdatePreferencesAsync(int userId, string preferredCity, string preferredMobilityType)
+    {
+        var normalizedCity = NormalizePreferredCity(preferredCity);
+        var normalizedMobilityType = NormalizePreferredMobilityType(preferredMobilityType);
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user is null) return false;
+
+        user.PreferredCity = normalizedCity;
+        user.PreferredMobilityType = normalizedMobilityType;
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    private static string NormalizePreferredCity(string preferredCity)
+    {
+        var city = preferredCity?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(city) || !AllowedCities.Contains(city))
+        {
+            throw new ArgumentException("Preferred city must be either montreal or laval.");
+        }
+
+        return city;
+    }
+
+    private static string NormalizePreferredMobilityType(string preferredMobilityType)
+    {
+        var mobilityType = preferredMobilityType?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(mobilityType) || !AllowedMobilityTypes.Contains(mobilityType))
+        {
+            throw new ArgumentException("Preferred mobility type must be either bixi or parking.");
+        }
+
+        return mobilityType;
     }
 }
