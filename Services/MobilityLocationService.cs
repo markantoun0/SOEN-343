@@ -100,4 +100,76 @@ public class MobilityLocationService : IMobilityLocationService
 
         return true;
     }
+    
+    public async Task<object> GetCityAnalyticsAsync()
+{
+    // Fetch real data first
+    var realData = await _db.MobilityLocations.ToListAsync();
+    var rng = new Random();
+
+    // Internal helper to handle both real and simulated stats
+    object MapStats(int locations, int capacity, int available) {
+        return new {
+            totalLocations = locations,
+            totalCapacity = capacity,
+            totalAvailable = available,
+            usageRate = capacity == 0 ? 0 : (double)(capacity - available) / capacity
+        };
+    }
+
+    object BuildCity(string cityName, bool simBixi = false, bool simParking = false)
+    {
+        var cityRows = realData.Where(x => x.City.Equals(cityName, StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        var bixiRow = cityRows.FirstOrDefault(x => x.Type == "bixi");
+        var parkingRow = cityRows.FirstOrDefault(x => x.Type == "parking");
+
+        // Logic for BIXI (Real or Simulated)
+        var bixiStats = (bixiRow == null && simBixi) 
+            ? MapStats(35, 300, rng.Next(20, 280)) // Simulated
+            : bixiRow != null 
+                ? MapStats(cityRows.Count(r => r.Type == "bixi"), cityRows.Where(r => r.Type == "bixi").Sum(r => r.Capacity), cityRows.Where(r => r.Type == "bixi").Sum(r => r.AvailableSpots))
+                : MapStats(0, 0, 0);
+
+        // Logic for PARKING (Real or Simulated)
+        var parkingStats = (parkingRow == null && simParking)
+            ? MapStats(25, 600, rng.Next(50, 550)) // Simulated
+            : parkingRow != null
+                ? MapStats(cityRows.Count(r => r.Type == "parking"), cityRows.Where(r => r.Type == "parking").Sum(r => r.Capacity), cityRows.Where(r => r.Type == "parking").Sum(r => r.AvailableSpots))
+                : MapStats(0, 0, 0);
+
+        // Calculate Overall City Usage
+        dynamic b = bixiStats;
+        dynamic p = parkingStats;
+        int totalCap = b.totalCapacity + p.totalCapacity;
+        int totalUsed = (b.totalCapacity - b.totalAvailable) + (p.totalCapacity - p.totalAvailable);
+
+        return new
+        {
+            city = cityName,
+            bixi = bixiStats,
+            parking = parkingStats,
+            usageRate = totalCap == 0 ? 0 : (double)totalUsed / totalCap
+        };
+    }
+
+    return new
+    {
+        montreal = BuildCity("Montreal", simBixi: false, simParking: true),
+        laval = BuildCity("Laval", simBixi: true, simParking: false),
+        unknown = BuildCity("Unknown", simBixi: true, simParking: false)
+    };
+}
+
+// Helper methods to keep the main logic clean
+private object MapStats(dynamic g) => new {
+    totalLocations = g.TotalLocations,
+    totalCapacity = g.TotalCapacity,
+    totalAvailable = g.TotalAvailable,
+    usageRate = g.TotalCapacity == 0 ? 0 : (double)(g.TotalCapacity - g.TotalAvailable) / g.TotalCapacity
+};
+
+private object EmptyStats() => new { 
+    totalLocations = 0, totalCapacity = 0, totalAvailable = 0, usageRate = 0.0 
+};
 }

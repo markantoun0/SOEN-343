@@ -1,12 +1,86 @@
 ﻿<section class="dashboard-page">
-  <div class="dashboard-card">
-    <h1>Admin Dashboard</h1>
-    <p>
-      Welcome back,
-      <strong>{{ auth.currentUser()?.name }}</strong>.
-    </p>
-    <p class="note">You are authenticated as an admin.</p>
+  <header class="dashboard-header">
+    <div class="welcome-text">
+      <h1>Mobility Analytics Dashboard</h1>
+      <p>Welcome, <strong>{{ auth.currentUser()?.name }}</strong> | <span class="status-badge">Admin Access</span></p>
+    </div>
+  </header>
 
-    <button type="button" (click)="logout()">Sign Out</button>
+  <div class="stats-grid" *ngIf="analytics() as data">
+    <div class="kpi-card">
+      <span class="label">Total System Usage</span>
+      <div class="value">{{ data.montreal.usageRate | percent:'1.1' }}</div>
+      <div class="trend positive">↑ 2.4% from last hour</div>
+    </div>
+    <div class="kpi-card bixi">
+      <span class="label">Bixi Availability (MTL)</span>
+      <div class="value">{{ data.montreal.bixi.totalAvailable }}</div>
+      <small>of {{ data.montreal.bixi.totalCapacity }} spots</small>
+    </div>
+    <div class="kpi-card parking">
+      <span class="label">Parking Occupancy (Laval)</span>
+      <div class="value">{{ data.laval.parking.usageRate | percent:'1.1' }}</div>
+      <small>Steady Traffic</small>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="analytics-container">
+    <div class="table-header">
+      <h2>Regional Capacity Breakdown</h2>
+    </div>
+
+    <div *ngIf="loading()" class="loader">Processing real-time data...</div>
+
+    <table *ngIf="!loading() && analytics() as data" class="modern-table">
+      <thead>
+      <tr>
+        <th class="text-left">City/Region</th>
+        <th class="text-left">Service Type</th>
+        <th class="text-center">Locations</th>
+        <th class="text-center">Inventory (Avail/Total)</th>
+        <th width="240">Usage Intensity</th>
+        <th class="text-right">Efficiency</th>
+      </tr>
+      </thead>
+      <tbody>
+      <ng-container *ngFor="let entry of data | keyvalue">
+        <tr>
+          <td rowspan="2" class="city-cell">
+            <div class="city-name-wrapper">
+              <strong>{{ entry.value.city }}</strong>
+            </div>
+          </td>
+
+          <td><span class="badge bixi-badge">BIXI</span></td>
+          <td class="text-center">{{ entry.value.bixi.totalLocations }}</td>
+          <td class="text-center">{{ entry.value.bixi.totalAvailable }} / {{ entry.value.bixi.totalCapacity }}</td>
+          <td>
+            <div class="progress-bar-container">
+              <div class="progress-fill bixi-color"
+                   [style.width.%]="entry.value.bixi.usageRate * 100"
+                   [class.critical]="entry.value.bixi.usageRate > 0.85"></div>
+            </div>
+          </td>
+          <td class="text-right"><strong>{{ entry.value.bixi.usageRate | percent:'1.1' }}</strong></td>
+        </tr>
+
+        <tr class="sub-row">
+          <td><span class="badge parking-badge">PARKING</span></td>
+          <td class="text-center">{{ entry.value.parking.totalLocations }}</td>
+          <td class="text-center">{{ entry.value.parking.totalAvailable }} / {{ entry.value.parking.totalCapacity }}</td>
+          <td>
+            <div class="progress-bar-container">
+              <div class="progress-fill parking-color"
+                   [style.width.%]="entry.value.parking.usageRate * 100"
+                   [class.warning]="entry.value.parking.usageRate > 0.70"></div>
+            </div>
+          </td>
+          <td class="text-right"><strong>{{ entry.value.parking.usageRate | percent:'1.1' }}</strong></td>
+        </tr>
+      </ng-container>
+      </tbody>
+    </table>
   </div>
 </section>

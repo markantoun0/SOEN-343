@@ -1,4 +1,4 @@
-﻿﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using SUMMS.Api.Services.Interfaces;
 
 namespace SUMMS.Api.Controllers;
@@ -8,10 +8,14 @@ namespace SUMMS.Api.Controllers;
 public class AdminsController : ControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly IMobilityLocationService _mobilityService;
 
-    public AdminsController(IAdminService adminService)
+    public AdminsController(
+        IAdminService adminService,
+        IMobilityLocationService mobilityService)
     {
         _adminService = adminService;
+        _mobilityService = mobilityService;
     }
 
     [HttpPost("signup")]
@@ -59,6 +63,14 @@ public class AdminsController : ControllerBase
             success = true,
             admin = new { admin.Id, admin.Name, admin.Email }
         });
+    }
+    
+    [HttpGet("analytics")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAnalytics()
+    {
+        var data = await _mobilityService.GetCityAnalyticsAsync();
+        return Ok(data);
     }
 }
 
