@@ -21,4 +21,6 @@ public interface IMobilityLocationService
     Task<MobilityLocation?> UpdateAvailableSpotsAsync(int id, int availableSpots);
 
     Task<bool> DeleteAsync(int id);
+    
+    Task<object> GetCityAnalyticsAsync();
 }
