@@ -15,6 +15,9 @@ if (Environment.GetEnvironmentVariable("GOOGLE_PLACES_API_KEY") is { } placesKey
 if (Environment.GetEnvironmentVariable("GOOGLE_MAPS_JS_API_KEY") is { } mapsKey)
     Environment.SetEnvironmentVariable("GoogleMaps__JsApiKey", mapsKey);
 
+if (Environment.GetEnvironmentVariable("GOOGLE_ROUTES_API_KEY") is { } routesKey)
+    Environment.SetEnvironmentVariable("GoogleRoutes__ApiKey", routesKey);
+
 var builder = WebApplication.CreateBuilder(args);
 
 var allowedOrigins = (Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "http://localhost:4200")
@@ -39,6 +42,9 @@ builder.Services.AddSwaggerGen(c => { c.SwaggerDoc("v1", new() { Title = "SUMMS 
 
 builder.Services.AddHttpClient<BixiAdapter>();
 builder.Services.AddHttpClient<GooglePlacesAdapter>();
+builder.Services.AddHttpClient<GoogleRoutesService>();
+
+builder.Services.AddScoped<IRouteService, GoogleRoutesService>();
 
 builder.Services.AddScoped<IBixiService>(sp => sp.GetRequiredService<BixiAdapter>());
 builder.Services.AddScoped<IMobilityService>(sp => sp.GetRequiredService<GooglePlacesAdapter>());

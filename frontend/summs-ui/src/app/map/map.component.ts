@@ -1,9 +1,11 @@
 import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { GoogleMap, MapMarker, MapInfoWindow } from '@angular/google-maps';
+import { GoogleMap, MapMarker, MapInfoWindow, MapPolyline } from '@angular/google-maps';
 import { catchError, map, of, timeout, finalize } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
+import { MobilityService, RouteResponse } from './mobility.service';
 
 export interface MobilityLocation {
   placeId: string;
@@ -31,14 +33,15 @@ interface ReservationResponse {
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [CommonModule, GoogleMap, MapMarker, MapInfoWindow],
+  imports: [CommonModule, FormsModule, GoogleMap, MapMarker, MapInfoWindow, MapPolyline],
   templateUrl: './map.component.html',
   styleUrl: './map.component.scss',
 })
 export class MapComponent {
   private http = inject(HttpClient);
-  private cdr  = inject(ChangeDetectorRef);
+  private cdr = inject(ChangeDetectorRef);
   private auth = inject(AuthService);
+  private mobilityService = inject(MobilityService);
 
   protected center = { lat: 45.5451, lng: -73.6395 };
   protected zoom = 11;
@@ -52,7 +55,6 @@ export class MapComponent {
   protected selectedLocation: MobilityLocation | null = null;
   protected reserveMessage: string | null = null;
 
-  // Single observable — Angular async pipe handles subscribe/unsubscribe & change detection
   protected locations$ = this.http
     .get<{ locations: MobilityLocation[] }>('/api/mobility/montreal-laval')
     .pipe(
@@ -60,16 +62,33 @@ export class MapComponent {
       catchError((err) => of({ data: null, error: err?.message ?? 'Failed to load locations.' }))
     );
 
+  // --- Route state ---
+  protected routeOrigin = '';
+  protected routeDestination = '';
+  protected routeTravelMode: 'car' | 'bike' = 'car';
+  protected routePolylinePath: google.maps.LatLngLiteral[] = [];
+  protected routePolylineOptions: google.maps.PolylineOptions = {
+    strokeColor: '#2563eb',
+    strokeOpacity: 0.85,
+    strokeWeight: 5,
+  };
+  protected routeDistance: string | null = null;
+  protected routeDuration: string | null = null;
+  protected routeLoading = false;
+  protected routeError: string | null = null;
+
+  get canCalculateRoute(): boolean {
+    return this.routeOrigin.trim().length > 0 && this.routeDestination.trim().length > 0;
+  }
+
   ngOnInit(): void {
     this.loadMapsScript();
   }
 
   private async loadMapsScript(): Promise<void> {
-    // Fetch the API key from backend
     const res = await fetch('/api/config/maps-key');
     const { key } = await res.json();
     if (!key) return;
-    // Inject the script if not already present
     if (!document.getElementById('google-maps-script')) {
       const script = document.createElement('script');
       script.id = 'google-maps-script';
@@ -77,6 +96,64 @@ export class MapComponent {
       document.head.appendChild(script);
     }
   }
+
+  // --- Route methods ---
+
+  protected calculateRoute(): void {
+    if (!this.canCalculateRoute) return;
+
+    this.routeLoading = true;
+    this.routeError = null;
+    this.routePolylinePath = [];
+    this.routeDistance = null;
+    this.routeDuration = null;
+
+    this.mobilityService
+      .getRoute({
+        origin: this.routeOrigin.trim(),
+        destination: this.routeDestination.trim(),
+        travelMode: this.routeTravelMode,
+      })
+      .pipe(
+        timeout(20000),
+        finalize(() => {
+          this.routeLoading = false;
+          this.cdr.detectChanges();
+        })
+      )
+      .subscribe({
+        next: (res: RouteResponse) => {
+          this.routePolylinePath = decodePolyline(res.encodedPolyline);
+          this.routeDistance = formatDistance(res.distanceMeters);
+          this.routeDuration = formatDuration(res.duration);
+          this.routePolylineOptions = {
+            ...this.routePolylineOptions,
+            strokeColor: this.routeTravelMode === 'bike' ? '#f97316' : '#2563eb',
+          };
+        },
+        error: (err) => {
+          this.routeError =
+            err?.error?.message ?? 'Could not calculate route. Please try again.';
+        },
+      });
+  }
+
+  protected clearRoute(): void {
+    this.routePolylinePath = [];
+    this.routeDistance = null;
+    this.routeDuration = null;
+    this.routeError = null;
+  }
+
+  protected setAsOrigin(loc: MobilityLocation): void {
+    this.routeOrigin = locationToAddress(loc);
+  }
+
+  protected setAsDestination(loc: MobilityLocation): void {
+    this.routeDestination = locationToAddress(loc);
+  }
+
+  // --- Marker methods ---
 
   protected getMarkerOptions(loc: MobilityLocation): google.maps.MarkerOptions {
     const isBixi = loc.type === 'bixi';
@@ -106,10 +183,6 @@ export class MapComponent {
   protected reserveSelectedLocation(event: Event): void {
     if (!this.selectedLocation) return;
 
-    // 1. Logic to get dates (In a real app, use a Modal/Dialog here)
-    // For this snippet, let's assume you've added two <input type="datetime-local">
-    // to your HTML or are using a Dialog.
-
     const startDate = (document.getElementById('start-date') as HTMLInputElement)?.value;
     const endDate = (document.getElementById('end-date') as HTMLInputElement)?.value;
 
@@ -118,7 +191,6 @@ export class MapComponent {
       return;
     }
 
-    // Validation: End date must be after start date
     if (new Date(startDate) >= new Date(endDate)) {
       this.reserveMessage = 'End date must be after start date.';
       return;
@@ -140,7 +212,6 @@ export class MapComponent {
     const availableSpots = Math.max(0, selected.availableSpots ?? 0);
     const capacity = Math.max(selected.capacity ?? availableSpots, availableSpots);
 
-    // 2. Add dates to the payload
     const payload = {
       placeId: selected.placeId,
       name: selected.name,
@@ -151,14 +222,15 @@ export class MapComponent {
       capacity,
       availableSpots,
       reservationTime: new Date().toISOString(),
-      startDate: new Date(startDate).toISOString(), // Added
-      endDate: new Date(endDate).toISOString(),      // Added
-      userId: this.auth.currentUser()?.id ?? null
+      startDate: new Date(startDate).toISOString(),
+      endDate: new Date(endDate).toISOString(),
+      userId: this.auth.currentUser()?.id ?? null,
     };
 
     this.http
       .post<ReservationResponse>('/api/reservations/reserve-location', payload)
-      .pipe(timeout(15000),
+      .pipe(
+        timeout(15000),
         finalize(() => {
           if (button) {
             button.disabled = false;
@@ -169,39 +241,30 @@ export class MapComponent {
       .subscribe({
         next: (res) => {
           const updatedSpots = res?.reservation?.mobilityLocation?.availableSpots;
-          const nextSpots = typeof updatedSpots === 'number'
-            ? Math.max(0, updatedSpots)
-            : Math.max(0, availableSpots - 1);
-
-          console.log('Next spots calculated:', nextSpots);
+          const nextSpots =
+            typeof updatedSpots === 'number'
+              ? Math.max(0, updatedSpots)
+              : Math.max(0, availableSpots - 1);
 
           this.applyDisplayedSpots(selected, nextSpots);
-          this.reserveMessage = 'Success! Spot reserved.';
-
-          if (nextSpots <= 0) {
-            this.reserveMessage = 'There are no spots anymore.';
-          }
+          this.reserveMessage =
+            nextSpots <= 0 ? 'There are no spots anymore.' : 'Success! Spot reserved.';
         },
         error: (err) => {
-          this.reserveMessage = err?.status === 409
-            ? 'There are no spots anymore.'
-            : 'Could not reserve right now.';
+          this.reserveMessage =
+            err?.status === 409 ? 'There are no spots anymore.' : 'Could not reserve right now.';
           console.error('Failed to save reservation', err);
-        }
+        },
       });
   }
 
-  private applyDisplayedSpots(
-    targetLocation: MobilityLocation,
-    spots: number
-  ): void {
+  private applyDisplayedSpots(targetLocation: MobilityLocation, spots: number): void {
     targetLocation.availableSpots = spots;
 
-    // Force immediate repaint of the open info-window on first click.
     if (this.selectedLocation?.placeId === targetLocation.placeId) {
       this.selectedLocation = {
         ...this.selectedLocation,
-        availableSpots: spots
+        availableSpots: spots,
       };
     }
 
@@ -209,3 +272,59 @@ export class MapComponent {
   }
 }
 
+function locationToAddress(loc: MobilityLocation): string {
+  if (loc.vicinity) return loc.vicinity;
+  return loc.city ? `${loc.name}, ${loc.city}` : loc.name;
+}
+
+function decodePolyline(encoded: string): google.maps.LatLngLiteral[] {
+  const points: google.maps.LatLngLiteral[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+
+    shift = 0;
+    result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+
+  return points;
+}
+
+function formatDistance(meters: number): string {
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)} km`;
+  }
+  return `${meters} m`;
+}
+
+function formatDuration(raw: string): string {
+  const totalSeconds = parseInt(raw.replace('s', ''), 10);
+  if (isNaN(totalSeconds) || totalSeconds <= 0) return '0 min';
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours > 0) {
+    return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+  }
+  return `${minutes} min`;
+}
