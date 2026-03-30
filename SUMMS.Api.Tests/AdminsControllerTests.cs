@@ -1,5 +1,6 @@
-﻿﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SUMMS.Api.Controllers;
+using SUMMS.Api.Domain.Models;
 using SUMMS.Api.Services.Interfaces;
 using YourProject.Models;
 
@@ -10,8 +11,7 @@ public class AdminsControllerTests
     [Fact]
     public async Task SignUp_ReturnsCreated_ForValidRequest()
     {
-        var service = new FakeAdminService();
-        var controller = new AdminsController(service);
+        var controller = CreateController();
 
         var result = await controller.SignUp(new AdminRegisterRequest
         {
@@ -29,7 +29,7 @@ public class AdminsControllerTests
     {
         var service = new FakeAdminService();
         await service.RegisterAsync("Platform Admin", "admin@summs.com", "secret123");
-        var controller = new AdminsController(service);
+        var controller = new AdminsController(service, new StubLocationService());
 
         var result = await controller.Login(new AdminLoginRequest
         {
@@ -45,7 +45,7 @@ public class AdminsControllerTests
     {
         var service = new FakeAdminService();
         await service.RegisterAsync("Platform Admin", "admin@summs.com", "secret123");
-        var controller = new AdminsController(service);
+        var controller = new AdminsController(service, new StubLocationService());
 
         var result = await controller.Login(new AdminLoginRequest
         {
@@ -54,6 +54,11 @@ public class AdminsControllerTests
         });
 
         Assert.IsType<OkObjectResult>(result);
+    }
+
+    private static AdminsController CreateController()
+    {
+        return new AdminsController(new FakeAdminService(), new StubLocationService());
     }
 
     private sealed class FakeAdminService : IAdminService
@@ -90,5 +95,28 @@ public class AdminsControllerTests
                     ? admin
                     : null);
         }
+    }
+
+    private sealed class StubLocationService : IMobilityLocationService
+    {
+        public Task<IEnumerable<MobilityLocation>> GetAllAsync(string? type = null)
+            => Task.FromResult(Enumerable.Empty<MobilityLocation>());
+
+        public Task<MobilityLocation?> GetByIdAsync(int id)
+            => Task.FromResult<MobilityLocation?>(null);
+
+        public Task<MobilityLocation> InsertAsync(
+            string placeId, string name, string type, string city,
+            double latitude, double longitude, int capacity, int availableSpots)
+            => throw new NotImplementedException();
+
+        public Task<MobilityLocation?> UpdateAvailableSpotsAsync(int id, int availableSpots)
+            => throw new NotImplementedException();
+
+        public Task<bool> DeleteAsync(int id)
+            => throw new NotImplementedException();
+
+        public Task<object> GetCityAnalyticsAsync()
+            => throw new NotImplementedException();
     }
 }
