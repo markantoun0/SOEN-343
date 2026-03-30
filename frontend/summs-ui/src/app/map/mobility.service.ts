@@ -21,21 +21,35 @@ export interface MobilityResponse {
   locations: MobilityLocation[];
 }
 
+export interface RouteRequest {
+  origin: string;
+  destination: string;
+  travelMode: 'car' | 'bike';
+}
+
+export interface RouteResponse {
+  success: boolean;
+  distanceMeters: number;
+  duration: string;
+  encodedPolyline: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MobilityService {
   private http = inject(HttpClient);
   private base = environment.apiBaseUrl;
 
-  /** Fetch bike + parking locations for Montréal and Laval */
   getMontrealAndLaval(): Observable<MobilityResponse> {
     return this.http.get<MobilityResponse>(`${this.base}/api/mobility/montreal-laval`);
   }
 
-  /** Fetch locations near a custom coordinate */
   getNearby(lat: number, lng: number, radius = 8000): Observable<MobilityResponse> {
     return this.http.get<MobilityResponse>(
       `${this.base}/api/mobility/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
     );
   }
-}
 
+  getRoute(req: RouteRequest): Observable<RouteResponse> {
+    return this.http.post<RouteResponse>(`${this.base}/api/mobility/route`, req);
+  }
+}

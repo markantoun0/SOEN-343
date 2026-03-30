@@ -1,6 +1,5 @@
 <div class="map-page">
 
-  <!-- Overlay header sits on top of the map -->
   <header class="map-header">
     <h1>Mobility Map – Montréal &amp; Laval</h1>
     <div class="legend">
@@ -12,6 +11,73 @@
       </span>
     </div>
   </header>
+
+  <!-- Route controls panel -->
+  <aside class="route-panel">
+    <h2>Route Planner</h2>
+
+    <label class="route-label" for="route-origin">Origin</label>
+    <input
+      id="route-origin"
+      class="route-input"
+      type="text"
+      placeholder="e.g. Montreal, QC"
+      [(ngModel)]="routeOrigin"
+    />
+
+    <label class="route-label" for="route-destination">Destination</label>
+    <input
+      id="route-destination"
+      class="route-input"
+      type="text"
+      placeholder="e.g. Laval, QC"
+      [(ngModel)]="routeDestination"
+    />
+
+    <div class="mode-selector">
+      <button
+        type="button"
+        class="mode-btn"
+        [class.active]="routeTravelMode === 'car'"
+        (click)="routeTravelMode = 'car'"
+      >
+        Car
+      </button>
+      <button
+        type="button"
+        class="mode-btn"
+        [class.active]="routeTravelMode === 'bike'"
+        (click)="routeTravelMode = 'bike'"
+      >
+        Bike
+      </button>
+    </div>
+
+    <button
+      type="button"
+      class="route-go-btn"
+      [disabled]="!canCalculateRoute || routeLoading"
+      (click)="calculateRoute()"
+    >
+      @if (routeLoading) {
+        Calculating...
+      } @else {
+        Get Route
+      }
+    </button>
+
+    @if (routeDistance && routeDuration) {
+      <div class="route-summary">
+        <p class="route-stat"><span class="stat-label">Distance</span> {{ routeDistance }}</p>
+        <p class="route-stat"><span class="stat-label">Duration</span> {{ routeDuration }}</p>
+        <button type="button" class="route-clear-btn" (click)="clearRoute()">Clear</button>
+      </div>
+    }
+
+    @if (routeError) {
+      <p class="route-error">{{ routeError }}</p>
+    }
+  </aside>
 
   @if (locations$ | async; as result) {
     @if (result.error) {
@@ -31,6 +97,10 @@
             [options]="getMarkerOptions(loc)"
             (mapClick)="openInfo(infoWindow, marker, loc)"
           />
+        }
+
+        @if (routePolylinePath.length > 0) {
+          <map-polyline [path]="routePolylinePath" [options]="routePolylineOptions" />
         }
 
         <map-info-window #infoWindow="mapInfoWindow">
@@ -62,6 +132,15 @@
                 <input type="datetime-local" id="end-date" class="date-input">
               </div>
 
+              <div class="nav-actions">
+                <button type="button" class="nav-btn origin" (click)="setAsOrigin(selectedLocation)">
+                  Start Here
+                </button>
+                <button type="button" class="nav-btn destination" (click)="setAsDestination(selectedLocation)">
+                  Navigate Here
+                </button>
+              </div>
+
               <button type="button" class="reserve-btn" (click)="reserveSelectedLocation($event)">
                 Confirm Reservation
               </button>
@@ -74,9 +153,7 @@
       </google-map>
     }
   } @else {
-    <div class="state-message">Loading locations…</div>
+    <div class="state-message">Loading locations...</div>
   }
 
 </div>
-
-

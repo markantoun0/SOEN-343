@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SUMMS.Api.Services;
 using SUMMS.Api.Services.Interfaces;
 
 namespace SUMMS.Api.Controllers;
@@ -9,19 +10,25 @@ public class MobilityController : ControllerBase
 {
     private readonly IReadOnlyDictionary<MobilityProvider, IMobilityProviderAdapter> _providerAdapters;
     private readonly IMobilityLocationService _locationService;
+    private readonly IRouteService _routeService;
     private readonly ILogger<MobilityController> _logger;
 
     private const double DefaultLat = 45.5017;
     private const double DefaultLng = -73.5673;
     private const int DefaultRadius = 8000;
 
+    private static readonly HashSet<string> SupportedTravelModes =
+        new(StringComparer.OrdinalIgnoreCase) { "car", "bike" };
+
     public MobilityController(
         IEnumerable<IMobilityProviderAdapter> providerAdapters,
         IMobilityLocationService locationService,
+        IRouteService routeService,
         ILogger<MobilityController> logger)
     {
         _providerAdapters = providerAdapters.ToDictionary(adapter => adapter.Provider);
         _locationService = locationService;
+        _routeService = routeService;
         _logger = logger;
     }
 
@@ -182,6 +189,49 @@ public async Task<IActionResult> GetMontrealAndLaval()
         return Ok(new { success = true, message = $"Location Id={id} deleted." });
     }
 
+    [HttpPost("route")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ComputeRoute([FromBody] RouteRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Origin))
+            return BadRequest(new { success = false, message = "Origin is required." });
+
+        if (string.IsNullOrWhiteSpace(request.Destination))
+            return BadRequest(new { success = false, message = "Destination is required." });
+
+        if (!SupportedTravelModes.Contains(request.TravelMode ?? string.Empty))
+            return BadRequest(new { success = false, message = "TravelMode must be 'car' or 'bike'." });
+
+        try
+        {
+            var result = await _routeService.ComputeRouteAsync(
+                request.Origin.Trim(),
+                request.Destination.Trim(),
+                request.TravelMode!.Trim());
+
+            return Ok(new
+            {
+                success = true,
+                distanceMeters = result.DistanceMeters,
+                duration = result.Duration,
+                encodedPolyline = result.EncodedPolyline
+            });
+        }
+        catch (GoogleRoutesException ex)
+        {
+            _logger.LogError(ex, "Google Routes API call failed");
+            return StatusCode(502, new { success = false, message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error computing route");
+            return StatusCode(500, new { success = false, message = "An unexpected error occurred." });
+        }
+    }
+
     private IMobilityProviderAdapter GetAdapter(MobilityProvider provider)
     {
         if (_providerAdapters.TryGetValue(provider, out var adapter))
@@ -206,4 +256,11 @@ public class CreateLocationRequest
 public class UpdateSpotsRequest
 {
     public int AvailableSpots { get; set; }
+}
+
+public class RouteRequest
+{
+    public string Origin { get; set; } = string.Empty;
+    public string Destination { get; set; } = string.Empty;
+    public string TravelMode { get; set; } = string.Empty;
 }
