@@ -151,6 +151,44 @@
           }
         </map-info-window>
       </google-map>
+
+      @if (showPaymentModal) {
+        <div class="modal-overlay">
+          <div class="modal-content">
+            <h2>Payment Details</h2>
+            <p><strong>Amount due: ${{ paymentAmount.toFixed(2) }}</strong></p>
+            @if (reserveMessage) {
+              <p class="reserve-message" style="margin-bottom: 12px; color: #991b1b; background: #fee2e2; padding: 6px; border-radius: 4px;">
+                {{ reserveMessage }}
+              </p>
+            }
+            <div class="form-group">
+              <label>Name on Card</label>
+              <input type="text" placeholder="John Doe" [(ngModel)]="cardholderName" />
+            </div>
+            <div class="form-group">
+              <label>Card Number</label>
+              <input type="text" placeholder="0000 0000 0000 0000" [(ngModel)]="cardNumber" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Expiry</label>
+                <input type="text" placeholder="MM/YY" [(ngModel)]="cardExpiry" />
+              </div>
+              <div class="form-group">
+                <label>CVC</label>
+                <input type="text" placeholder="123" [(ngModel)]="cardCvc" />
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="cancel-btn" (click)="showPaymentModal = false; reserveMessage = null;">Cancel</button>
+              <button class="pay-btn" [disabled]="isPaying" (click)="processPayment()">
+                @if (isPaying) { Processing... } @else { Pay & Reserve }
+              </button>
+            </div>
+          </div>
+        </div>
+      }
     }
   } @else {
     <div class="state-message">Loading locations...</div>

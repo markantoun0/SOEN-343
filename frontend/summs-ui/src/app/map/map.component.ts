@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -37,7 +37,7 @@ interface ReservationResponse {
   templateUrl: './map.component.html',
   styleUrl: './map.component.scss',
 })
-export class MapComponent {
+export class MapComponent implements OnInit {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private auth = inject(AuthService);
@@ -54,6 +54,16 @@ export class MapComponent {
 
   protected selectedLocation: MobilityLocation | null = null;
   protected reserveMessage: string | null = null;
+
+  protected showPaymentModal = false;
+  protected paymentAmount = 0;
+  protected paymentContext: any = null;
+  protected isPaying = false;
+
+  protected cardholderName = '';
+  protected cardNumber = '';
+  protected cardExpiry = '';
+  protected cardCvc = '';
 
   protected locations$ = this.http
     .get<{ locations: MobilityLocation[] }>('/api/mobility/montreal-laval')
@@ -191,7 +201,10 @@ export class MapComponent {
       return;
     }
 
-    if (new Date(startDate) >= new Date(endDate)) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (start >= end) {
       this.reserveMessage = 'End date must be after start date.';
       return;
     }
@@ -202,7 +215,78 @@ export class MapComponent {
       return;
     }
 
-    const button = event.currentTarget as HTMLButtonElement | null;
+    const durationHours = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60));
+    const rate = this.selectedLocation.type === 'bixi' ? 0.25 : 0.50;
+    this.paymentAmount = durationHours * rate;
+
+    if (this.paymentAmount <= 0) {
+      this.paymentAmount = rate; // Minimum 1 hour
+    }
+
+    // Set context for payment
+    this.paymentContext = {
+      button: event.currentTarget as HTMLButtonElement | null,
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      userId: this.auth.currentUser()?.id ?? null,
+    };
+
+    if (!this.paymentContext.userId) {
+      this.reserveMessage = 'You must be logged in to reserve.';
+      return;
+    }
+
+    this.showPaymentModal = true;
+    this.reserveMessage = null;
+  }
+
+  protected processPayment(): void {
+    if (!this.paymentContext) return;
+
+    if (!this.cardholderName || !this.cardNumber || !this.cardExpiry || !this.cardCvc) {
+      this.reserveMessage = 'Please fill out all payment fields.';
+      return;
+    }
+
+    this.isPaying = true;
+    this.reserveMessage = null;
+
+    const paymentPayload = {
+      userId: this.paymentContext.userId,
+      amount: this.paymentAmount,
+      paymentMethod: 'CreditCard',
+      reservationType: this.selectedLocation?.type,
+      reservationStartDate: this.paymentContext.startDate,
+      reservationEndDate: this.paymentContext.endDate,
+      cardholderName: this.cardholderName,
+      cardNumber: this.cardNumber,
+      expiry: this.cardExpiry
+    };
+
+    this.http.post<any>('/api/payments/process', paymentPayload)
+      .pipe(
+        timeout(15000),
+        finalize(() => this.isPaying = false)
+      )
+      .subscribe({
+        next: (res) => {
+          if (res.success) {
+            this.showPaymentModal = false;
+            this.executeReservation(this.paymentContext, res.paymentId);
+          } else {
+            this.reserveMessage = 'Payment failed. Please try again.';
+          }
+        },
+        error: (err) => {
+          this.reserveMessage = err?.error?.message ?? 'Payment failed due to an error.';
+          console.error('Payment error', err);
+        }
+      });
+  }
+
+  private executeReservation(context: any, paymentId: number): void {
+    if (!this.selectedLocation) return;
+    const button = context.button;
     if (button) {
       button.disabled = true;
       button.textContent = 'Reserving...';
@@ -222,9 +306,10 @@ export class MapComponent {
       capacity,
       availableSpots,
       reservationTime: new Date().toISOString(),
-      startDate: new Date(startDate).toISOString(),
-      endDate: new Date(endDate).toISOString(),
-      userId: this.auth.currentUser()?.id ?? null,
+      startDate: context.startDate,
+      endDate: context.endDate,
+      userId: context.userId,
+      // Pass paymentId if backend needs to link it, though PaymentsController already saved it
     };
 
     this.http
