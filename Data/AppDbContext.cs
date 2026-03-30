@@ -1,4 +1,4 @@
-﻿﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using SUMMS.Api.Domain.Models;
 using YourProject.Models;
 
@@ -15,6 +15,7 @@ namespace SUMMS.Api.Data
         public DbSet<Admin> Admins { get; set; }
         public DbSet<MobilityLocation> MobilityLocations { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
+        public DbSet<Payment> Payments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
