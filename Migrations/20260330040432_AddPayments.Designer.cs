@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SUMMS.Api.Data;
@@ -11,9 +12,11 @@ using SUMMS.Api.Data;
 namespace SUMMS.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260330040432_AddPayments")]
+    partial class AddPayments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -72,22 +75,10 @@ namespace SUMMS.Api.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("CardLast4")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CardholderName")
-                        .HasColumnType("text");
+                        .HasColumnType("numeric(10,2)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ExpiryMonth")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ExpiryYear")
-                        .HasColumnType("text");
 
                     b.Property<string>("PaymentMethod")
                         .IsRequired()
@@ -113,6 +104,10 @@ namespace SUMMS.Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ReservationId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("Payments");
                 });
@@ -230,6 +225,24 @@ namespace SUMMS.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("SUMMS.Api.Domain.Models.Payment", b =>
+                {
+                    b.HasOne("SUMMS.Api.Domain.Models.Reservation", "Reservation")
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("YourProject.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reservation");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("SUMMS.Api.Domain.Models.Reservation", b =>
