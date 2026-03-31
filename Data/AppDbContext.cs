@@ -1,4 +1,4 @@
-﻿﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using SUMMS.Api.Domain.Models;
 using YourProject.Models;
 
@@ -22,6 +22,10 @@ namespace SUMMS.Api.Data
 
             modelBuilder.Entity<Admin>()
                 .HasIndex(a => a.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<MobilityLocation>()
+                .HasIndex(m => m.PlaceId)
                 .IsUnique();
 
             modelBuilder.Entity<Reservation>()

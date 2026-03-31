@@ -152,6 +152,22 @@ public class ReservationsController : ControllerBase
 
         return Ok(new { success = true, message = $"Reservation Id={id} cancelled." });
     }
+
+    [HttpPost("cleanup")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Cleanup()
+    {
+        try
+        {
+            var cleanedUpCount = await _reservationService.CleanupExpiredReservationsAsync();
+            return Ok(new { success = true, message = $"Cleaned up {cleanedUpCount} expired reservations." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Cleanup failed");
+            return StatusCode(500, new { success = false, message = "Cleanup operation failed." });
+        }
+    }
 }
 
 public class CreateReservationRequest

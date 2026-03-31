@@ -137,6 +137,9 @@ public class ReservationService : IReservationService
 
         if (location is null)
         {
+            // When creating a new location, use the capacity from the API
+            // Ensure capacity is at least as large as availableSpots to prevent data corruption
+            var initialCapacity = Math.Max(Math.Max(1, capacity), availableSpots);
             location = new MobilityLocation
             {
                 PlaceId = placeId,
@@ -145,8 +148,8 @@ public class ReservationService : IReservationService
                 City = normalizedCity,
                 Latitude = latitude,
                 Longitude = longitude,
-                Capacity = Math.Max(1, capacity),
-                AvailableSpots = Math.Max(0, availableSpots)
+                Capacity = initialCapacity,
+                AvailableSpots = Math.Min(availableSpots, initialCapacity)
             };
             _db.MobilityLocations.Add(location);
             await _db.SaveChangesAsync();
