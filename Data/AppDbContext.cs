@@ -25,6 +25,10 @@ namespace SUMMS.Api.Data
                 .HasIndex(a => a.Email)
                 .IsUnique();
 
+            modelBuilder.Entity<MobilityLocation>()
+                .HasIndex(m => m.PlaceId)
+                .IsUnique();
+
             modelBuilder.Entity<Reservation>()
                 .Property(r => r.Status)
                 .HasConversion<string>();

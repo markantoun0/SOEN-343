@@ -294,7 +294,9 @@ export class MapComponent implements OnInit {
 
     const selected = this.selectedLocation;
     const availableSpots = Math.max(0, selected.availableSpots ?? 0);
-    const capacity = Math.max(selected.capacity ?? availableSpots, availableSpots);
+    // IMPORTANT: Use capacity if available, otherwise estimate based on availableSpots
+    // For BIXI, capacity is always provided. For parking, estimate conservatively.
+    const capacity = selected.capacity ?? Math.max(availableSpots * 2, 5);
 
     const payload = {
       placeId: selected.placeId,

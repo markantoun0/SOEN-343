@@ -33,66 +33,64 @@ public class MobilityController : ControllerBase
     }
 
     [HttpGet("montreal-laval")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status502BadGateway)]
-    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetMontrealAndLaval()
+public async Task<IActionResult> GetMontrealAndLaval()
+{
+    try
     {
-        try
+        var bixiTask = GetAdapter(MobilityProvider.Bixi)
+            .GetLocationsAsync(new MobilityProviderRequest(DefaultLat, DefaultLng));
+        var parkingMtlTask = GetAdapter(MobilityProvider.GooglePlaces)
+            .GetLocationsAsync(new MobilityProviderRequest(45.5017, -73.5673, 10000));
+        var parkingLavalTask = GetAdapter(MobilityProvider.GooglePlaces)
+            .GetLocationsAsync(new MobilityProviderRequest(45.6066, -73.7124, 8000));
+        
+        var storedTask = _locationService.GetAllAsync();
+
+        await Task.WhenAll(bixiTask, parkingMtlTask, parkingLavalTask, storedTask);
+        
+        var bixi = (await bixiTask).ToList();
+        var parking = (await parkingMtlTask).Where(l => l.Type == "parking").Take(50)
+            .Concat((await parkingLavalTask).Where(l => l.Type == "parking").Take(50))
+            .DistinctBy(l => l.PlaceId)
+            .ToList();
+
+        var apiLocations = bixi.Concat(parking).ToList();
+        
+        var storedByPlaceId = (await storedTask)
+            .GroupBy(l => l.PlaceId)
+            .ToDictionary(g => g.Key, g => g.First());
+        
+        foreach (var storedEntry in storedByPlaceId)
         {
-            var bixiTask = GetAdapter(MobilityProvider.Bixi)
-                .GetLocationsAsync(new MobilityProviderRequest(DefaultLat, DefaultLng));
-            var parkingMtlTask = GetAdapter(MobilityProvider.GooglePlaces)
-                .GetLocationsAsync(new MobilityProviderRequest(45.5017, -73.5673, 10000));
-            var parkingLavalTask = GetAdapter(MobilityProvider.GooglePlaces)
-                .GetLocationsAsync(new MobilityProviderRequest(45.6066, -73.7124, 8000));
+            var storedLoc = storedEntry.Value;
+            
+            var existing = apiLocations.FirstOrDefault(l => l.PlaceId == storedLoc.PlaceId);
 
-            await Task.WhenAll(bixiTask, parkingMtlTask, parkingLavalTask);
-
-            var bixi = (await bixiTask).ToList();
-            var parking = (await parkingMtlTask)
-                .Where(l => l.Type == "parking").Take(15)
-                .Concat((await parkingLavalTask)
-                    .Where(l => l.Type == "parking").Take(15))
-                .DistinctBy(l => l.PlaceId)
-                .ToList();
-
-            var all = bixi.Concat(parking).ToList();
-
-            var storedByPlaceId = (await _locationService.GetAllAsync())
-                .GroupBy(l => l.PlaceId)
-                .ToDictionary(g => g.Key, g => g.First());
-
-            foreach (var location in all)
+            if (existing != null)
             {
-                if (!storedByPlaceId.TryGetValue(location.PlaceId, out var stored))
-                    continue;
-
-                location.AvailableSpots = stored.AvailableSpots;
-                location.Capacity = stored.Capacity;
-                location.City = string.IsNullOrWhiteSpace(stored.City) ? location.City : stored.City;
+                existing.AvailableSpots = storedLoc.AvailableSpots;
+                existing.Capacity = storedLoc.Capacity;
+                existing.City = string.IsNullOrWhiteSpace(storedLoc.City) ? existing.City : storedLoc.City;
             }
-
-            return Ok(new
+            else
             {
-                success = true,
-                count = all.Count,
-                bixiCount = bixi.Count,
-                parkingCount = parking.Count,
-                locations = all
-            });
+                apiLocations.Add(storedLoc);
+            }
         }
-        catch (HttpRequestException ex)
+
+        return Ok(new
         {
-            _logger.LogError(ex, "External API call failed");
-            return StatusCode(502, new { success = false, message = "Failed to reach an external API.", detail = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error in MobilityController");
-            return StatusCode(500, new { success = false, message = "An unexpected error occurred." });
-        }
+            success = true,
+            count = apiLocations.Count,
+            locations = apiLocations
+        });
     }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error in GetMontrealAndLaval");
+        return StatusCode(500, new { success = false });
+    }
+}
 
     [HttpGet("nearby")]
     [ProducesResponseType(StatusCodes.Status200OK)]

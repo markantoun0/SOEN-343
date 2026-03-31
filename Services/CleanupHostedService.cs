@@ -5,7 +5,7 @@ namespace SUMMS.Api.Services;
 
 public class CleanupHostedService : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(60);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CleanupHostedService> _logger;

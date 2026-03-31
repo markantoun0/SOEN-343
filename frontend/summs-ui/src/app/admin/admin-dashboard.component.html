@@ -9,7 +9,7 @@
   <div class="stats-grid" *ngIf="analytics() as data">
     <div class="kpi-card">
       <span class="label">Total System Usage</span>
-      <div class="value">{{ data.montreal.usageRate | percent:'1.1' }}</div>
+      <div class="value">{{ data.montreal.overallUsageRate | percent:'1.1' }}</div>
       <div class="trend positive">↑ 2.4% from last hour</div>
     </div>
     <div class="kpi-card bixi">
