@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit, signal } from '@angular/core';
+﻿﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../auth/auth.service';
 import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } from './carbon-footprint.service';
@@ -29,6 +29,14 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
                 <div class="stat-label">kg CO₂ Emitted</div>
               </div>
               <div class="stat-item">
+                <div class="stat-value">{{ emissionsAvoidedKg().toFixed(2) }}</div>
+                <div class="stat-label">kg CO₂ Emissions Avoided</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value">{{ netEmissionsKg().toFixed(2) }}</div>
+                <div class="stat-label">kg CO₂ Net Emissions</div>
+              </div>
+              <div class="stat-item">
                 <div class="stat-value">{{ userFootprint()!.tripsCompleted }}</div>
                 <div class="stat-label">Trips Completed</div>
               </div>
@@ -41,6 +49,9 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
             </div>
             <div class="last-updated">
               Last updated: {{ formatDate(userFootprint()!.lastUpdated) }}
+            </div>
+            <div class="last-updated">
+              Emissions avoided are calculated from BIXI trip distances entered in My Reservations.
             </div>
           } @else {
             <p class="no-data">No carbon footprint data yet. Start making trips to track your impact!</p>
@@ -115,6 +126,8 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
   styleUrl: './carbon-footprint.component.scss',
 })
 export class CarbonFootprintComponent implements OnInit {
+  private static readonly AVOIDED_STORAGE_PREFIX = 'carbonAvoidedByReservation:user:';
+
   private auth = inject(AuthService);
   private carbonService = inject(CarbonFootprintService);
 
@@ -122,6 +135,7 @@ export class CarbonFootprintComponent implements OnInit {
   protected leaderboard = signal<UserLeaderboardEntry[]>([]);
   protected currentUserId = signal<number | null>(null);
   protected userRank = signal<number | null>(null);
+  protected emissionsAvoidedKg = signal(0);
 
   protected loading = signal(true);
   protected loadingLeaderboard = signal(true);
@@ -132,6 +146,7 @@ export class CarbonFootprintComponent implements OnInit {
     const user = this.auth.currentUser();
     if (user) {
       this.currentUserId.set(user.id);
+      this.loadAvoidedEmissions(user.id);
       this.loadUserFootprint(user.id);
       this.loadUserRank(user.id);
     } else {
@@ -191,6 +206,27 @@ export class CarbonFootprintComponent implements OnInit {
       dateStyle: 'medium',
       timeStyle: 'short',
     });
+  }
+
+  protected netEmissionsKg(): number {
+    const totalEmitted = this.userFootprint()?.totalCarbonKg ?? 0;
+    return totalEmitted - this.emissionsAvoidedKg();
+  }
+
+  private loadAvoidedEmissions(userId: number): void {
+    const key = `${CarbonFootprintComponent.AVOIDED_STORAGE_PREFIX}${userId}`;
+
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, unknown>;
+      const totalAvoided = Object.values(parsed)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value >= 0)
+        .reduce((sum, value) => sum + value, 0);
+
+      this.emissionsAvoidedKg.set(totalAvoided);
+    } catch {
+      this.emissionsAvoidedKg.set(0);
+    }
   }
 }
 

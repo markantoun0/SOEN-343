@@ -95,9 +95,9 @@ public class ReservationService : IReservationService
         var reservation = new Reservation
         {
             MobilityLocationId = mobilityLocationId,
-            ReservationTime = DateTime.SpecifyKind(reservationTime, DateTimeKind.Utc),
-            StartDate = DateTime.SpecifyKind(startDate, DateTimeKind.Utc),
-            EndDate = DateTime.SpecifyKind(endDate, DateTimeKind.Utc),
+            ReservationTime = NormalizeToUtc(reservationTime),
+            StartDate = NormalizeToUtc(startDate),
+            EndDate = NormalizeToUtc(endDate),
             City = city,
             Type = type,
             Status = ReservationStatus.Active,
@@ -311,5 +311,15 @@ public class ReservationService : IReservationService
             reservation.UserId,
             $"{reservation.MobilityLocation.Name} now has {reservation.MobilityLocation.AvailableSpots} available spots.",
             DateTime.UtcNow));
+    }
+
+    private static DateTime NormalizeToUtc(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
     }
 }

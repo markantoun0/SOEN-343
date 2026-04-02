@@ -1,4 +1,4 @@
-﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
+﻿﻿﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -28,6 +28,8 @@ export interface ReservationSummary {
   styleUrl: './my-reservations.component.scss',
 })
 export class MyReservationsComponent implements OnInit {
+  private static readonly CAR_EMISSION_KG_PER_KM = 0.21;
+
   protected auth = inject(AuthService);
   private http   = inject(HttpClient);
   private carbonService = inject(CarbonFootprintService);
@@ -70,10 +72,21 @@ export class MyReservationsComponent implements OnInit {
   }
 
   protected formatDate(d: string): string {
-    return new Date(d).toLocaleString('en-CA', {
+    const normalized = this.normalizeApiDate(d);
+    return new Date(normalized).toLocaleString('en-CA', {
       dateStyle: 'medium',
       timeStyle: 'short',
     });
+  }
+
+  private normalizeApiDate(value: string): string {
+    // Some API dates can arrive without timezone suffix; interpret those as UTC.
+    if (!value) {
+      return value;
+    }
+
+    const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+    return hasTimezone ? value : `${value}Z`;
   }
 
   protected toggleExpand(reservationId: number): void {
@@ -94,6 +107,8 @@ export class MyReservationsComponent implements OnInit {
     this.carbonService.calculateTripCarbonFootprint(reservationId, distanceKm).subscribe({
       next: (response) => {
         if (response.success) {
+          this.recordAvoidedEmissions(response.data, reservationId);
+
           const success = { ...this.calculationSuccess() };
           success[reservationId] = true;
           this.calculationSuccess.set(success);
@@ -116,5 +131,49 @@ export class MyReservationsComponent implements OnInit {
         this.calculatingId.set(null);
       },
     });
+  }
+
+  private recordAvoidedEmissions(
+    tripData: { mobilityType: string; distanceKm: number } | undefined,
+    reservationId: number
+  ): void {
+    const userId = this.auth.currentUser()?.id;
+    if (!userId || !tripData) {
+      return;
+    }
+
+    const mobilityType = (tripData.mobilityType || '').toLowerCase();
+    if (mobilityType !== 'bixi' && mobilityType !== 'bike') {
+      return;
+    }
+
+    const avoidedKg = Math.max(0, tripData.distanceKm) * MyReservationsComponent.CAR_EMISSION_KG_PER_KM;
+    const key = this.avoidedEmissionsStorageKey(userId);
+    const existingByReservation = this.readAvoidedEmissionsByReservation(key);
+    existingByReservation[reservationId] = avoidedKg;
+    localStorage.setItem(key, JSON.stringify(existingByReservation));
+  }
+
+  private avoidedEmissionsStorageKey(userId: number): string {
+    return `carbonAvoidedByReservation:user:${userId}`;
+  }
+
+  private readAvoidedEmissionsByReservation(storageKey: string): Record<number, number> {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(storageKey) ?? '{}') as Record<string, unknown>;
+      const normalized: Record<number, number> = {};
+
+      for (const [reservationId, value] of Object.entries(parsed)) {
+        const reservationKey = Number(reservationId);
+        const emissionValue = Number(value);
+        if (!Number.isNaN(reservationKey) && Number.isFinite(emissionValue) && emissionValue >= 0) {
+          normalized[reservationKey] = emissionValue;
+        }
+      }
+
+      return normalized;
+    } catch {
+      return {};
+    }
   }
 }

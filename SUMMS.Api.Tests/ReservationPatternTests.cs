@@ -164,6 +164,47 @@ public class ReservationPatternTests
         Assert.Contains(observer.Events, e => e.EventType == ParkingEventType.ParkingSpotAvailable);
     }
 
+    [Fact]
+    public async Task InsertAsync_ConvertsLocalDatesToUtc()
+    {
+        await using var db = CreateDbContext();
+        var location = new MobilityLocation
+        {
+            PlaceId = "loc-utc",
+            Name = "UTC Test Lot",
+            Type = "parking",
+            City = "Montreal",
+            Latitude = 45.5,
+            Longitude = -73.5,
+            Capacity = 2,
+            AvailableSpots = 2
+        };
+
+        db.MobilityLocations.Add(location);
+        await db.SaveChangesAsync();
+
+        var service = CreateReservationService(db, new TestObserver());
+        var localReservationTime = DateTime.SpecifyKind(new DateTime(2026, 4, 2, 9, 0, 0), DateTimeKind.Local);
+        var localStart = DateTime.SpecifyKind(new DateTime(2026, 4, 2, 10, 0, 0), DateTimeKind.Local);
+        var localEnd = DateTime.SpecifyKind(new DateTime(2026, 4, 2, 11, 0, 0), DateTimeKind.Local);
+
+        var reservation = await service.InsertAsync(
+            location.Id,
+            localReservationTime,
+            "Montreal",
+            localStart,
+            localEnd,
+            "parking",
+            userId: 1);
+
+        Assert.Equal(DateTimeKind.Utc, reservation.ReservationTime.Kind);
+        Assert.Equal(DateTimeKind.Utc, reservation.StartDate.Kind);
+        Assert.Equal(DateTimeKind.Utc, reservation.EndDate.Kind);
+        Assert.Equal(localReservationTime.ToUniversalTime(), reservation.ReservationTime);
+        Assert.Equal(localStart.ToUniversalTime(), reservation.StartDate);
+        Assert.Equal(localEnd.ToUniversalTime(), reservation.EndDate);
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
