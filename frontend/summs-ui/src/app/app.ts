@@ -54,6 +54,7 @@ import { AuthDialogComponent } from './auth/auth-dialog/auth-dialog.component';
     <!-- Menu bar -->
     <div class="app-menu">
       <a routerLink="/map" routerLinkActive="active">Map</a>
+      <a routerLink="/carbon" routerLinkActive="active">🌍 Carbon</a>
       @if (auth.currentUser()?.role === 'admin') {
         <a routerLink="/admin/dashboard" routerLinkActive="active">Admin Dashboard</a>
       } @else if (auth.currentUser()) {

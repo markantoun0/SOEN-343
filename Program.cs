@@ -55,6 +55,8 @@ builder.Services.AddScoped<IMobilityLocationService, MobilityLocationService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<ICarbonFootprintService, CarbonFootprintService>();
 
 builder.Services.AddScoped<ReservationCommandInvoker>();
 builder.Services.AddScoped<IParkingEventPublisher, ParkingEventPublisher>();

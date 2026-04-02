@@ -1,0 +1,49 @@
+﻿### Carbon Footprint API Testing
+
+# Get current user's carbon footprint
+GET http://localhost:5000/api/carbonfootprint/user/1
+
+###
+
+# Calculate carbon footprint for a trip
+POST http://localhost:5000/api/carbonfootprint/calculate-trip
+Content-Type: application/json
+
+{
+  "reservationId": 1,
+  "distanceKm": 5.5
+}
+
+###
+
+# Get leaderboard (top 10)
+GET http://localhost:5000/api/carbonfootprint/leaderboard?topN=10
+
+###
+
+# Get leaderboard (top 20)
+GET http://localhost:5000/api/carbonfootprint/leaderboard?topN=20
+
+###
+
+# Get user rank
+GET http://localhost:5000/api/carbonfootprint/rank/1
+
+###
+
+# Calculate carbon for a different user
+POST http://localhost:5000/api/carbonfootprint/calculate-trip
+Content-Type: application/json
+
+{
+  "reservationId": 2,
+  "distanceKm": 10.0
+}
+
+###
+
+# Get updated leaderboard
+GET http://localhost:5000/api/carbonfootprint/leaderboard
+
+###
+
