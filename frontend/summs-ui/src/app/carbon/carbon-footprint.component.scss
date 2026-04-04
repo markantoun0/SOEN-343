@@ -1,4 +1,4 @@
-﻿.carbon-container {
+.carbon-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
@@ -210,8 +210,16 @@
         }
 
         .tip-icon {
-          font-size: 2.5rem;
           margin-bottom: 10px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+
+          img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+          }
         }
 
         h3 {

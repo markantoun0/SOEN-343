@@ -1,4 +1,4 @@
-﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
+﻿import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../auth/auth.service';
 import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } from './carbon-footprint.service';
@@ -52,7 +52,7 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
 
         <!-- Leaderboard -->
         <section class="leaderboard-section">
-          <h2>🏆 Carbon Leaderboard</h2>
+          <h2>Carbon Leaderboard</h2>
           @if (loadingLeaderboard()) {
             <p class="loading">Loading leaderboard...</p>
           } @else if (leaderboardError()) {
@@ -88,25 +88,19 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
 
         <!-- Carbon Tips -->
         <section class="tips-section">
-          <h2>💡 Reduce Your Carbon Footprint</h2>
+          <h2>Reduce Your Carbon Footprint</h2>
           <div class="tips-grid">
             <div class="tip-card">
-              <div class="tip-icon">🚲</div>
+              <div class="tip-icon">
+                <img src="/icons/bicycle.png" alt="Bicycle" width="48" height="48" />
+              </div>
               <h3>Use BIXI Bikes</h3>
               <p>Zero emissions! Perfect for short trips around the city.</p>
             </div>
             <div class="tip-card">
-              <div class="tip-icon">🚌</div>
-              <h3>Public Transit</h3>
-              <p>Buses produce 89g CO₂/km - much lower than cars!</p>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">⚡</div>
-              <h3>E-Scooters</h3>
-              <p>Only 22g CO₂/km - a great eco-friendly option.</p>
-            </div>
-            <div class="tip-card">
-              <div class="tip-icon">📊</div>
+              <div class="tip-icon">
+                <img src="/icons/line-chart.png" alt="Chart" width="48" height="48" />
+              </div>
               <h3>Track Savings</h3>
               <p>Each BIXI reservation adds estimated emissions savings to your total.</p>
             </div>
