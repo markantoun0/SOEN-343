@@ -30,18 +30,18 @@ public class CarbonFootprintController : ControllerBase
         return Ok(new { success = true, data = footprint });
     }
 
-    [HttpPost("calculate-trip")]
+    [HttpPost("record-bixi-savings")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CalculateTripCarbonFootprint([FromBody] CalculateTripRequest request)
+    public async Task<IActionResult> RecordBixiSavings([FromBody] RecordBixiSavingsRequest request)
     {
-        if (request.ReservationId <= 0 || request.DistanceKm < 0)
-            return BadRequest(new { success = false, message = "Invalid reservation ID or distance" });
+        if (request.ReservationId <= 0)
+            return BadRequest(new { success = false, message = "Invalid reservation ID" });
 
         try
         {
-            var tripFootprint = await _carbonFootprintService.CalculateTripCarbonFootprintAsync(request.ReservationId, request.DistanceKm);
+            var tripFootprint = await _carbonFootprintService.RecordBixiSavingsForReservationAsync(request.ReservationId);
             return Ok(new { success = true, data = tripFootprint });
         }
         catch (InvalidOperationException ex)
@@ -78,9 +78,7 @@ public class CarbonFootprintController : ControllerBase
     }
 }
 
-public class CalculateTripRequest
+public class RecordBixiSavingsRequest
 {
     public int ReservationId { get; set; }
-    public double DistanceKm { get; set; }
 }
-

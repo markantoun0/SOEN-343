@@ -11,15 +11,9 @@ public class CarbonFootprintService : ICarbonFootprintService
     private readonly AppDbContext _db;
     private readonly ILogger<CarbonFootprintService> _logger;
 
-    // Carbon emissions factors in kg CO2 per km for different mobility types
-    private static readonly Dictionary<string, double> CarbonEmissionFactors = new(StringComparer.OrdinalIgnoreCase)
-    {
-        { "bixi", 0.0 },              // Zero emissions - bicycle
-        { "parking", 0.21 },           // Car average ~210g CO2 per km
-        { "car", 0.21 },
-        { "bus", 0.089 },              // Public transport ~89g CO2 per km per passenger
-        { "scooter", 0.022 }           // E-scooter ~22g CO2 per km
-    };
+    // Estimated baseline for equivalent car travel in city traffic.
+    private const double CarEmissionKgPerKm = 0.21;
+    private const double EstimatedUrbanCarKmPerHour = 25.0;
 
     public CarbonFootprintService(AppDbContext db, ILogger<CarbonFootprintService> logger)
     {
@@ -42,15 +36,15 @@ public class CarbonFootprintService : ICarbonFootprintService
         {
             UserId = footprint.UserId,
             UserName = footprint.User?.Name ?? "Unknown",
-            TotalCarbonKg = footprint.TotalCarbonKg,
+            TotalSavedKg = footprint.TotalCarbonKg,
             TripsCompleted = footprint.TripsCompleted,
             LastUpdated = footprint.LastUpdated
         };
     }
 
-    public async Task<TripCarbonFootprintDto> CalculateTripCarbonFootprintAsync(int reservationId, double distanceKm)
+    public async Task<TripCarbonFootprintDto> RecordBixiSavingsForReservationAsync(int reservationId)
     {
-        _logger.LogInformation("Calculating carbon footprint for reservation {ReservationId}, distance {DistanceKm}km", reservationId, distanceKm);
+        _logger.LogInformation("Calculating BIXI emissions savings for reservation {ReservationId}", reservationId);
 
         var reservation = await _db.Reservations
             .Include(r => r.MobilityLocation)
@@ -63,13 +57,16 @@ public class CarbonFootprintService : ICarbonFootprintService
             throw new InvalidOperationException("Reservation does not have an associated user");
 
         var mobilityType = reservation.Type ?? reservation.MobilityLocation?.Type ?? "unknown";
-        var emissionFactor = GetEmissionFactor(mobilityType);
-        var carbonKg = distanceKm * emissionFactor;
+        if (!string.Equals(mobilityType, "bixi", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Only BIXI reservations are eligible for emissions savings estimation.");
 
-        // Calculate duration in minutes
         var duration = (reservation.EndDate - reservation.StartDate).TotalMinutes;
+        if (duration <= 0)
+            throw new InvalidOperationException("Reservation duration must be greater than zero.");
 
-        // Update or create carbon footprint record
+        var estimatedDistanceKm = (duration / 60.0) * EstimatedUrbanCarKmPerHour;
+        var savedKg = estimatedDistanceKm * CarEmissionKgPerKm;
+
         var footprint = await _db.CarbonFootprints
             .FirstOrDefaultAsync(cf => cf.UserId == reservation.UserId);
 
@@ -78,7 +75,7 @@ public class CarbonFootprintService : ICarbonFootprintService
             footprint = new CarbonFootprint
             {
                 UserId = reservation.UserId.Value,
-                TotalCarbonKg = carbonKg,
+                TotalCarbonKg = savedKg,
                 TripsCompleted = 1,
                 LastUpdated = DateTime.UtcNow
             };
@@ -86,32 +83,31 @@ public class CarbonFootprintService : ICarbonFootprintService
         }
         else
         {
-            footprint.TotalCarbonKg += carbonKg;
+            footprint.TotalCarbonKg += savedKg;
             footprint.TripsCompleted += 1;
             footprint.LastUpdated = DateTime.UtcNow;
         }
 
         await _db.SaveChangesAsync();
 
-        _logger.LogInformation("Carbon footprint updated for user {UserId}: +{CarbonKg}kg CO2", reservation.UserId, carbonKg);
+        _logger.LogInformation("Carbon savings updated for user {UserId}: +{SavedKg}kg CO2 saved", reservation.UserId, savedKg);
 
         return new TripCarbonFootprintDto
         {
             ReservationId = reservationId,
             MobilityType = mobilityType,
-            DistanceKm = distanceKm,
             DurationMinutes = duration,
-            CarbonKg = carbonKg
+            EstimatedSavedKg = savedKg
         };
     }
 
     public async Task<List<UserLeaderboardEntryDto>> GetLeaderboardAsync(int topN = 10)
     {
-        _logger.LogInformation("Getting top {TopN} users by lowest carbon emissions", topN);
+        _logger.LogInformation("Getting top {TopN} users by highest emissions saved", topN);
 
         var leaderboard = await _db.CarbonFootprints
             .Include(cf => cf.User)
-            .OrderBy(cf => cf.TotalCarbonKg)
+            .OrderByDescending(cf => cf.TotalCarbonKg)
             .Take(topN)
             .ToListAsync();
 
@@ -125,7 +121,7 @@ public class CarbonFootprintService : ICarbonFootprintService
                 Rank = rank++,
                 UserId = footprint.UserId,
                 UserName = footprint.User?.Name ?? "Unknown",
-                TotalCarbonKg = footprint.TotalCarbonKg,
+                TotalSavedKg = footprint.TotalCarbonKg,
                 TripsCompleted = footprint.TripsCompleted
             });
         }
@@ -144,20 +140,9 @@ public class CarbonFootprintService : ICarbonFootprintService
             return null;
 
         var rankPosition = await _db.CarbonFootprints
-            .Where(cf => cf.TotalCarbonKg < userFootprint.TotalCarbonKg)
+            .Where(cf => cf.TotalCarbonKg > userFootprint.TotalCarbonKg)
             .CountAsync();
 
         return rankPosition + 1;
     }
-
-    private double GetEmissionFactor(string mobilityType)
-    {
-        if (CarbonEmissionFactors.TryGetValue(mobilityType, out var factor))
-            return factor;
-
-        // Default to car emissions if type not found
-        _logger.LogWarning("Unknown mobility type {MobilityType}, using default car emissions", mobilityType);
-        return CarbonEmissionFactors["car"];
-    }
 }
-

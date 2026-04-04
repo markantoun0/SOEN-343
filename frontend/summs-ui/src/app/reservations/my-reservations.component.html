@@ -1,4 +1,4 @@
-﻿﻿<div class="reservations-page">
+﻿﻿﻿﻿<div class="reservations-page">
 
   <header class="page-header">
     <h1>My Reservations</h1>
@@ -38,13 +38,6 @@
             <strong class="location-name">
               {{ r.mobilityLocation?.name ?? '—' }}
             </strong>
-            <button
-              class="expand-btn"
-              (click)="toggleExpand(r.id)"
-              [class.expanded]="expandedReservationId() === r.id"
-              title="Calculate carbon footprint">
-              📊
-            </button>
           </div>
           <div class="card-body">
             <div class="detail">
@@ -63,34 +56,6 @@
               <span class="label">Reserved at</span>
               <span>{{ formatDate(r.reservationTime) }}</span>
             </div>
-
-            @if (expandedReservationId() === r.id) {
-              <div class="carbon-calculator">
-                <h4>Calculate Carbon Footprint</h4>
-                <div class="carbon-form">
-                  <label for="distance-{{ r.id }}">Distance traveled (km):</label>
-                  <input
-                    type="number"
-                    [id]="'distance-' + r.id"
-                    [(ngModel)]="distanceInput()[r.id]"
-                    placeholder="Enter distance"
-                    step="0.1"
-                    min="0" />
-                  <button
-                    class="calc-btn"
-                    (click)="calculateCarbon(r.id)"
-                    [disabled]="calculatingId() === r.id">
-                    @if (calculatingId() === r.id) {
-                      <span>Calculating...</span>
-                    } @else if (calculationSuccess()[r.id]) {
-                      <span>✓ Recorded!</span>
-                    } @else {
-                      <span>Calculate</span>
-                    }
-                  </button>
-                </div>
-              </div>
-            }
           </div>
         </li>
       }

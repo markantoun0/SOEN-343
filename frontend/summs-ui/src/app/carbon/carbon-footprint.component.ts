@@ -1,4 +1,4 @@
-﻿﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
+﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../auth/auth.service';
 import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } from './carbon-footprint.service';
@@ -25,20 +25,12 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
           } @else if (userFootprint()) {
             <div class="stats-card">
               <div class="stat-item">
-                <div class="stat-value">{{ (userFootprint()!.totalCarbonKg).toFixed(2) }}</div>
-                <div class="stat-label">kg CO₂ Emitted</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value">{{ emissionsAvoidedKg().toFixed(2) }}</div>
-                <div class="stat-label">kg CO₂ Emissions Avoided</div>
-              </div>
-              <div class="stat-item">
-                <div class="stat-value">{{ netEmissionsKg().toFixed(2) }}</div>
-                <div class="stat-label">kg CO₂ Net Emissions</div>
+                <div class="stat-value">{{ (userFootprint()!.totalSavedKg).toFixed(2) }}</div>
+                <div class="stat-label">kg CO₂ Emissions Saved</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value">{{ userFootprint()!.tripsCompleted }}</div>
-                <div class="stat-label">Trips Completed</div>
+                <div class="stat-label">BIXI Trips Counted</div>
               </div>
               @if (userRank()) {
                 <div class="stat-item">
@@ -51,7 +43,7 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
               Last updated: {{ formatDate(userFootprint()!.lastUpdated) }}
             </div>
             <div class="last-updated">
-              Emissions avoided are calculated from BIXI trip distances entered in My Reservations.
+              Savings are estimated from each BIXI reservation duration versus equivalent car travel.
             </div>
           } @else {
             <p class="no-data">No carbon footprint data yet. Start making trips to track your impact!</p>
@@ -70,7 +62,7 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
               <div class="leaderboard-header">
                 <div class="rank-col">Rank</div>
                 <div class="name-col">User</div>
-                <div class="carbon-col">Carbon (kg)</div>
+                <div class="carbon-col">Saved (kg)</div>
                 <div class="trips-col">Trips</div>
               </div>
               @for (entry of leaderboard(); track entry.userId) {
@@ -84,7 +76,7 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
                     }
                   </div>
                   <div class="name-col">{{ entry.userName }}</div>
-                  <div class="carbon-col">{{ (entry.totalCarbonKg).toFixed(2) }}</div>
+                  <div class="carbon-col">{{ (entry.totalSavedKg).toFixed(2) }}</div>
                   <div class="trips-col">{{ entry.tripsCompleted }}</div>
                 </div>
               }
@@ -115,8 +107,8 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
             </div>
             <div class="tip-card">
               <div class="tip-icon">📊</div>
-              <h3>Track Progress</h3>
-              <p>Monitor your emissions and challenge yourself to reduce them!</p>
+              <h3>Track Savings</h3>
+              <p>Each BIXI reservation adds estimated emissions savings to your total.</p>
             </div>
           </div>
         </section>
@@ -126,8 +118,6 @@ import { CarbonFootprintService, CarbonFootprintData, UserLeaderboardEntry } fro
   styleUrl: './carbon-footprint.component.scss',
 })
 export class CarbonFootprintComponent implements OnInit {
-  private static readonly AVOIDED_STORAGE_PREFIX = 'carbonAvoidedByReservation:user:';
-
   private auth = inject(AuthService);
   private carbonService = inject(CarbonFootprintService);
 
@@ -135,7 +125,6 @@ export class CarbonFootprintComponent implements OnInit {
   protected leaderboard = signal<UserLeaderboardEntry[]>([]);
   protected currentUserId = signal<number | null>(null);
   protected userRank = signal<number | null>(null);
-  protected emissionsAvoidedKg = signal(0);
 
   protected loading = signal(true);
   protected loadingLeaderboard = signal(true);
@@ -146,7 +135,6 @@ export class CarbonFootprintComponent implements OnInit {
     const user = this.auth.currentUser();
     if (user) {
       this.currentUserId.set(user.id);
-      this.loadAvoidedEmissions(user.id);
       this.loadUserFootprint(user.id);
       this.loadUserRank(user.id);
     } else {
@@ -208,26 +196,4 @@ export class CarbonFootprintComponent implements OnInit {
     });
   }
 
-  protected netEmissionsKg(): number {
-    const totalEmitted = this.userFootprint()?.totalCarbonKg ?? 0;
-    return totalEmitted - this.emissionsAvoidedKg();
-  }
-
-  private loadAvoidedEmissions(userId: number): void {
-    const key = `${CarbonFootprintComponent.AVOIDED_STORAGE_PREFIX}${userId}`;
-
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) ?? '{}') as Record<string, unknown>;
-      const totalAvoided = Object.values(parsed)
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value) && value >= 0)
-        .reduce((sum, value) => sum + value, 0);
-
-      this.emissionsAvoidedKg.set(totalAvoided);
-    } catch {
-      this.emissionsAvoidedKg.set(0);
-    }
-  }
 }
-
-

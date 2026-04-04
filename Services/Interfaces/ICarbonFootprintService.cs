@@ -5,14 +5,14 @@ namespace SUMMS.Api.Services.Interfaces;
 public interface ICarbonFootprintService
 {
     /// <summary>
-    /// Get carbon footprint for a user
+    /// Get carbon savings footprint for a user
     /// </summary>
     Task<CarbonFootprintDto?> GetUserCarbonFootprintAsync(int userId);
 
     /// <summary>
-    /// Calculate and update carbon footprint for a trip
+    /// Calculate and persist estimated emissions saved for a BIXI reservation
     /// </summary>
-    Task<TripCarbonFootprintDto> CalculateTripCarbonFootprintAsync(int reservationId, double distanceKm);
+    Task<TripCarbonFootprintDto> RecordBixiSavingsForReservationAsync(int reservationId);
 
     /// <summary>
     /// Get top users by carbon savings (leaderboard)
@@ -24,4 +24,3 @@ public interface ICarbonFootprintService
     /// </summary>
     Task<int?> GetUserRankAsync(int userId);
 }
-

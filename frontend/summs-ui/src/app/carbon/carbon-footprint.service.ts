@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 export interface CarbonFootprintData {
   userId: number;
   userName: string;
-  totalCarbonKg: number;
+  totalSavedKg: number;
   tripsCompleted: number;
   lastUpdated: string;
 }
@@ -14,16 +14,15 @@ export interface UserLeaderboardEntry {
   rank: number;
   userId: number;
   userName: string;
-  totalCarbonKg: number;
+  totalSavedKg: number;
   tripsCompleted: number;
 }
 
 export interface TripCarbonFootprint {
   reservationId: number;
   mobilityType: string;
-  distanceKm: number;
   durationMinutes: number;
-  carbonKg: number;
+  estimatedSavedKg: number;
 }
 
 export interface UserRankResponse {
@@ -44,13 +43,6 @@ export class CarbonFootprintService {
     );
   }
 
-  calculateTripCarbonFootprint(reservationId: number, distanceKm: number): Observable<{ success: boolean; data: TripCarbonFootprint }> {
-    return this.http.post<{ success: boolean; data: TripCarbonFootprint }>(
-      `${this.apiUrl}/calculate-trip`,
-      { reservationId, distanceKm }
-    );
-  }
-
   getLeaderboard(topN: number = 10): Observable<{ success: boolean; data: UserLeaderboardEntry[] }> {
     return this.http.get<{ success: boolean; data: UserLeaderboardEntry[] }>(
       `${this.apiUrl}/leaderboard`,
@@ -64,4 +56,3 @@ export class CarbonFootprintService {
     );
   }
 }
-

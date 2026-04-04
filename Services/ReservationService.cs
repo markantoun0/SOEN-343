@@ -11,15 +11,18 @@ public class ReservationService : IReservationService
     private readonly AppDbContext _db;
     private readonly ILogger<ReservationService> _logger;
     private readonly IParkingEventPublisher _eventPublisher;
+    private readonly ICarbonFootprintService _carbonFootprintService;
 
     public ReservationService(
         AppDbContext db,
         ILogger<ReservationService> logger,
-        IParkingEventPublisher eventPublisher)
+        IParkingEventPublisher eventPublisher,
+        ICarbonFootprintService carbonFootprintService)
     {
         _db = db;
         _logger = logger;
         _eventPublisher = eventPublisher;
+        _carbonFootprintService = carbonFootprintService;
     }
 
     public async Task<IEnumerable<Reservation>> GetAllAsync(string? type = null, string? city = null)
@@ -106,6 +109,18 @@ public class ReservationService : IReservationService
 
         _db.Reservations.Add(reservation);
         await _db.SaveChangesAsync();
+
+        if (reservation.UserId.HasValue && IsBixiReservation(reservation))
+        {
+            try
+            {
+                await _carbonFootprintService.RecordBixiSavingsForReservationAsync(reservation.Id);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Failed to record BIXI savings for reservation {ReservationId}", reservation.Id);
+            }
+        }
 
         await _db.Entry(reservation).Reference(r => r.MobilityLocation).LoadAsync();
         await PublishReservationEventAsync(
@@ -321,5 +336,10 @@ public class ReservationService : IReservationService
             DateTimeKind.Local => value.ToUniversalTime(),
             _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
         };
+    }
+
+    private static bool IsBixiReservation(Reservation reservation)
+    {
+        return string.Equals(reservation.Type, "bixi", StringComparison.OrdinalIgnoreCase);
     }
 }

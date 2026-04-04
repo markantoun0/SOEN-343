@@ -1,17 +1,16 @@
-﻿### Carbon Footprint API Testing
+﻿﻿### Carbon Footprint API Testing
 
 # Get current user's carbon footprint
 GET http://localhost:5000/api/carbonfootprint/user/1
 
 ###
 
-# Calculate carbon footprint for a trip
-POST http://localhost:5000/api/carbonfootprint/calculate-trip
+# Record estimated emissions saved for a BIXI reservation
+POST http://localhost:5000/api/carbonfootprint/record-bixi-savings
 Content-Type: application/json
 
 {
-  "reservationId": 1,
-  "distanceKm": 5.5
+  "reservationId": 1
 }
 
 ###
@@ -31,13 +30,12 @@ GET http://localhost:5000/api/carbonfootprint/rank/1
 
 ###
 
-# Calculate carbon for a different user
-POST http://localhost:5000/api/carbonfootprint/calculate-trip
+# Record BIXI savings for a different reservation
+POST http://localhost:5000/api/carbonfootprint/record-bixi-savings
 Content-Type: application/json
 
 {
-  "reservationId": 2,
-  "distanceKm": 10.0
+  "reservationId": 2
 }
 
 ###
@@ -46,4 +44,3 @@ Content-Type: application/json
 GET http://localhost:5000/api/carbonfootprint/leaderboard
 
 ###
-
