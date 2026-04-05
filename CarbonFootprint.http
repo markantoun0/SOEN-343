@@ -1,0 +1,46 @@
+﻿﻿### Carbon Footprint API Testing
+
+# Get current user's carbon footprint
+GET http://localhost:5000/api/carbonfootprint/user/1
+
+###
+
+# Record estimated emissions saved for a BIXI reservation
+POST http://localhost:5000/api/carbonfootprint/record-bixi-savings
+Content-Type: application/json
+
+{
+  "reservationId": 1
+}
+
+###
+
+# Get leaderboard (top 10)
+GET http://localhost:5000/api/carbonfootprint/leaderboard?topN=10
+
+###
+
+# Get leaderboard (top 20)
+GET http://localhost:5000/api/carbonfootprint/leaderboard?topN=20
+
+###
+
+# Get user rank
+GET http://localhost:5000/api/carbonfootprint/rank/1
+
+###
+
+# Record BIXI savings for a different reservation
+POST http://localhost:5000/api/carbonfootprint/record-bixi-savings
+Content-Type: application/json
+
+{
+  "reservationId": 2
+}
+
+###
+
+# Get updated leaderboard
+GET http://localhost:5000/api/carbonfootprint/leaderboard
+
+###

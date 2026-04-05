@@ -56,9 +56,13 @@ import { AuthDialogComponent } from './auth/auth-dialog/auth-dialog.component';
       <a routerLink="/map" routerLinkActive="active">Map</a>
       @if (auth.currentUser()?.role === 'admin') {
         <a routerLink="/admin/dashboard" routerLinkActive="active">Admin Dashboard</a>
+        <a routerLink="/carbon" routerLinkActive="active">Carbon Footprint</a>
       } @else if (auth.currentUser()) {
         <a routerLink="/my-reservations" routerLinkActive="active">My Reservations</a>
+        <a routerLink="/carbon" routerLinkActive="active">Carbon Footprint</a>
         <a routerLink="/preferences" routerLinkActive="active">Preferences</a>
+      } @else {
+        <a routerLink="/carbon" routerLinkActive="active">Carbon Footprint</a>
       }
     </div>
 

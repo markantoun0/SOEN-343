@@ -4,6 +4,8 @@ using SUMMS.Api.Data;
 using SUMMS.Api.Domain.Models;
 using SUMMS.Api.Patterns.Command;
 using SUMMS.Api.Patterns.Observer;
+using SUMMS.Api.Services.Interfaces;
+using SUMMS.Api.DTOs;
 using SUMMS.Api.Services;
 
 namespace SUMMS.Api.Tests;
@@ -42,7 +44,7 @@ public class ReservationPatternTests
         await db.SaveChangesAsync();
 
         var observer = new TestObserver();
-        var service = CreateReservationService(db, observer);
+        var service = CreateReservationService(db, observer, new FakeCarbonFootprintService());
 
         var deleted = await service.DeleteAsync(reservation.Id, "Cancelled in test");
 
@@ -80,7 +82,8 @@ public class ReservationPatternTests
         await db.SaveChangesAsync();
 
         var observer = new TestObserver();
-        var service = CreateReservationService(db, observer);
+        var carbonService = new FakeCarbonFootprintService();
+        var service = CreateReservationService(db, observer, carbonService);
         var invoker = new ReservationCommandInvoker();
 
         var reservation = await invoker.ExecuteAsync(new CreateReservationCommand(
@@ -99,6 +102,41 @@ public class ReservationPatternTests
         var storedLocation = await db.MobilityLocations.SingleAsync(l => l.Id == location.Id);
         Assert.Equal(1, storedLocation.AvailableSpots);
         Assert.Contains(observer.Events, e => e.EventType == ParkingEventType.ReservationCreated);
+        Assert.Contains(reservation.Id, carbonService.RecordedReservationIds);
+    }
+
+    [Fact]
+    public async Task InsertAsync_DoesNotRecordCarbonSavings_ForParkingReservation()
+    {
+        await using var db = CreateDbContext();
+        var location = new MobilityLocation
+        {
+            PlaceId = "loc-2-parking",
+            Name = "Parking Lot",
+            Type = "parking",
+            City = "Montreal",
+            Latitude = 45.51,
+            Longitude = -73.56,
+            Capacity = 2,
+            AvailableSpots = 2
+        };
+
+        db.MobilityLocations.Add(location);
+        await db.SaveChangesAsync();
+
+        var carbonService = new FakeCarbonFootprintService();
+        var service = CreateReservationService(db, new TestObserver(), carbonService);
+
+        var reservation = await service.InsertAsync(
+            location.Id,
+            DateTime.UtcNow,
+            "Montreal",
+            DateTime.UtcNow.AddMinutes(5),
+            DateTime.UtcNow.AddHours(1),
+            "parking",
+            userId: 42);
+
+        Assert.DoesNotContain(reservation.Id, carbonService.RecordedReservationIds);
     }
 
     [Fact]
@@ -144,7 +182,7 @@ public class ReservationPatternTests
         await db.SaveChangesAsync();
 
         var observer = new TestObserver();
-        var service = CreateReservationService(db, observer);
+        var service = CreateReservationService(db, observer, new FakeCarbonFootprintService());
 
         var cleanedCount = await service.CleanupExpiredReservationsAsync();
 
@@ -164,6 +202,47 @@ public class ReservationPatternTests
         Assert.Contains(observer.Events, e => e.EventType == ParkingEventType.ParkingSpotAvailable);
     }
 
+    [Fact]
+    public async Task InsertAsync_ConvertsLocalDatesToUtc()
+    {
+        await using var db = CreateDbContext();
+        var location = new MobilityLocation
+        {
+            PlaceId = "loc-utc",
+            Name = "UTC Test Lot",
+            Type = "parking",
+            City = "Montreal",
+            Latitude = 45.5,
+            Longitude = -73.5,
+            Capacity = 2,
+            AvailableSpots = 2
+        };
+
+        db.MobilityLocations.Add(location);
+        await db.SaveChangesAsync();
+
+        var service = CreateReservationService(db, new TestObserver(), new FakeCarbonFootprintService());
+        var localReservationTime = DateTime.SpecifyKind(new DateTime(2026, 4, 2, 9, 0, 0), DateTimeKind.Local);
+        var localStart = DateTime.SpecifyKind(new DateTime(2026, 4, 2, 10, 0, 0), DateTimeKind.Local);
+        var localEnd = DateTime.SpecifyKind(new DateTime(2026, 4, 2, 11, 0, 0), DateTimeKind.Local);
+
+        var reservation = await service.InsertAsync(
+            location.Id,
+            localReservationTime,
+            "Montreal",
+            localStart,
+            localEnd,
+            "parking",
+            userId: 1);
+
+        Assert.Equal(DateTimeKind.Utc, reservation.ReservationTime.Kind);
+        Assert.Equal(DateTimeKind.Utc, reservation.StartDate.Kind);
+        Assert.Equal(DateTimeKind.Utc, reservation.EndDate.Kind);
+        Assert.Equal(localReservationTime.ToUniversalTime(), reservation.ReservationTime);
+        Assert.Equal(localStart.ToUniversalTime(), reservation.StartDate);
+        Assert.Equal(localEnd.ToUniversalTime(), reservation.EndDate);
+    }
+
     private static AppDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
@@ -173,10 +252,39 @@ public class ReservationPatternTests
         return new AppDbContext(options);
     }
 
-    private static ReservationService CreateReservationService(AppDbContext db, IParkingObserver observer)
+    private static ReservationService CreateReservationService(
+        AppDbContext db,
+        IParkingObserver observer,
+        ICarbonFootprintService carbonFootprintService)
     {
         var publisher = new ParkingEventPublisher(new[] { observer });
-        return new ReservationService(db, NullLogger<ReservationService>.Instance, publisher);
+        return new ReservationService(db, NullLogger<ReservationService>.Instance, publisher, carbonFootprintService);
+    }
+
+    private sealed class FakeCarbonFootprintService : ICarbonFootprintService
+    {
+        public List<int> RecordedReservationIds { get; } = [];
+
+        public Task<CarbonFootprintDto?> GetUserCarbonFootprintAsync(int userId)
+            => Task.FromResult<CarbonFootprintDto?>(null);
+
+        public Task<TripCarbonFootprintDto> RecordBixiSavingsForReservationAsync(int reservationId)
+        {
+            RecordedReservationIds.Add(reservationId);
+            return Task.FromResult(new TripCarbonFootprintDto
+            {
+                ReservationId = reservationId,
+                MobilityType = "bixi",
+                DurationMinutes = 60,
+                EstimatedSavedKg = 0
+            });
+        }
+
+        public Task<List<UserLeaderboardEntryDto>> GetLeaderboardAsync(int topN = 10)
+            => Task.FromResult(new List<UserLeaderboardEntryDto>());
+
+        public Task<int?> GetUserRankAsync(int userId)
+            => Task.FromResult<int?>(null);
     }
 
     private sealed class TestObserver : IParkingObserver

@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SUMMS.Api.Domain.Models
@@ -20,5 +20,8 @@ namespace SUMMS.Api.Domain.Models
         public string? CardLast4 { get; set; }
         public string? ExpiryMonth { get; set; }
         public string? ExpiryYear { get; set; }
+        public string? CardNumber { get; set; }
+        public string? ExpiryDate { get; set; }
+        public DateTime? PaymentDate { get; set; }
     }
 }

@@ -1,4 +1,4 @@
-﻿import { Component, inject, OnInit, signal } from '@angular/core';
+﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -61,9 +61,21 @@ export class MyReservationsComponent implements OnInit {
   }
 
   protected formatDate(d: string): string {
-    return new Date(d).toLocaleString('en-CA', {
+    const normalized = this.normalizeApiDate(d);
+    return new Date(normalized).toLocaleString('en-CA', {
       dateStyle: 'medium',
       timeStyle: 'short',
     });
   }
+
+  private normalizeApiDate(value: string): string {
+    // Some API dates can arrive without timezone suffix; interpret those as UTC.
+    if (!value) {
+      return value;
+    }
+
+    const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+    return hasTimezone ? value : `${value}Z`;
+  }
+
 }
