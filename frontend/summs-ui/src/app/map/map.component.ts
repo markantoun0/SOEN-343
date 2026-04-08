@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { GoogleMap, MapMarker, MapInfoWindow, MapPolyline } from '@angular/google-maps';
 import { catchError, map, of, timeout, finalize } from 'rxjs';
+import { Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { MobilityService, RouteResponse } from './mobility.service';
 
@@ -38,15 +39,12 @@ interface ReservationResponse {
   styleUrl: './map.component.scss',
 })
 export class MapComponent implements OnInit {
-  private static readonly CARDHOLDER_REGEX = /^(?=.{2,50}$)[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
-  private static readonly CARD_NUMBER_REGEX = /^\d{12,19}$/;
-  private static readonly CARD_EXPIRY_REGEX = /^(0[1-9]|1[0-2])\/(\d{2})$/;
-  private static readonly CARD_CVC_REGEX = /^\d{3,4}$/;
-
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private auth = inject(AuthService);
+  private router = inject(Router);
   private mobilityService = inject(MobilityService);
+  private payUiFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected center = { lat: 45.5451, lng: -73.6395 };
   protected zoom = 11;
@@ -248,7 +246,7 @@ export class MapComponent implements OnInit {
   protected processPayment(): void {
     if (!this.paymentContext) return;
 
-    const paymentValidationError = this.validatePaymentInputs();
+    const paymentValidationError = this.getPaymentValidationError();
     if (paymentValidationError) {
       this.reserveMessage = paymentValidationError;
       return;
@@ -257,6 +255,15 @@ export class MapComponent implements OnInit {
     this.isPaying = true;
     this.reserveMessage = null;
 
+    // Safety fallback: never leave the button stuck in "Processing..."
+    this.clearPayUiFallbackTimer();
+    this.payUiFallbackTimer = setTimeout(() => {
+      this.isPaying = false;
+      if (!this.reserveMessage) {
+        this.reserveMessage = 'Payment timed out. Please try again.';
+      }
+    }, 20000);
+
     const paymentPayload = {
       userId: this.paymentContext.userId,
       amount: this.paymentAmount,
@@ -264,121 +271,69 @@ export class MapComponent implements OnInit {
       reservationType: this.selectedLocation?.type,
       reservationStartDate: this.paymentContext.startDate,
       reservationEndDate: this.paymentContext.endDate,
-      cardholderName: this.cardholderName,
-      cardNumber: this.cardNumber,
-      expiry: this.cardExpiry,
-      cvc: this.cardCvc
+      cardholderName: this.cardholderName.trim(),
+      cardNumber: this.cardNumber.replace(/\s/g, ''),
+      expiry: this.cardExpiry.trim(),
+      cvc: this.cardCvc.trim()
     };
+
+    console.log('Processing payment...');
 
     this.http.post<any>('/api/payments/process', paymentPayload)
       .pipe(
         timeout(15000),
-        finalize(() => this.isPaying = false)
+        finalize(() => {
+          this.isPaying = false;
+          this.clearPayUiFallbackTimer();
+        })
       )
       .subscribe({
         next: (res) => {
           if (res.success) {
+            // Close modal and show success immediately
             this.showPaymentModal = false;
-            this.executeReservation(this.paymentContext, res.paymentId);
+            this.reserveMessage = 'Success! Spot reserved.';
+
+            // Execute reservation in background without awaiting
+            this.executeReservationInBackground(this.paymentContext, res.paymentId);
+            void this.router.navigate(['/my-reservations']);
           } else {
-            this.reserveMessage = 'Payment failed. Please try again.';
+            this.reserveMessage = res.message || 'Payment failed. Please try again.';
+            console.error('Payment failed:', res);
           }
         },
         error: (err) => {
-          this.reserveMessage = err?.error?.message ?? 'Payment failed due to an error.';
-          console.error('Payment error', err);
+          const errorMsg = err?.error?.message || err?.error || 'Payment failed. Please try again.';
+          this.reserveMessage = errorMsg;
+          console.error('Payment error:', err);
         }
       });
   }
 
+  private clearPayUiFallbackTimer(): void {
+    if (this.payUiFallbackTimer) {
+      clearTimeout(this.payUiFallbackTimer);
+      this.payUiFallbackTimer = null;
+    }
+  }
+
   protected onCardNumberInput(): void {
-    const digitsOnly = this.cardNumber.replace(/\D/g, '').slice(0, 19);
-    this.cardNumber = digitsOnly.replace(/(.{4})/g, '$1 ').trim();
+    const digits = this.cardNumber.replace(/\D/g, '').slice(0, 16);
+    this.cardNumber = digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
   }
 
   protected onCardExpiryInput(): void {
-    const digitsOnly = this.cardExpiry.replace(/\D/g, '').slice(0, 4);
-    if (digitsOnly.length <= 2) {
-      this.cardExpiry = digitsOnly;
+    const digits = this.cardExpiry.replace(/\D/g, '').slice(0, 4);
+    if (digits.length <= 2) {
+      this.cardExpiry = digits;
       return;
     }
 
-    this.cardExpiry = `${digitsOnly.slice(0, 2)}/${digitsOnly.slice(2)}`;
+    this.cardExpiry = `${digits.slice(0, 2)}/${digits.slice(2)}`;
   }
 
   protected onCardCvcInput(): void {
     this.cardCvc = this.cardCvc.replace(/\D/g, '').slice(0, 4);
-  }
-
-  private validatePaymentInputs(): string | null {
-    if (!this.cardholderName || !this.cardNumber || !this.cardExpiry || !this.cardCvc) {
-      return 'Please fill out all payment fields.';
-    }
-
-    const holder = this.cardholderName.trim();
-    const normalizedCardNumber = this.cardNumber.replace(/\D/g, '');
-    const expiry = this.cardExpiry.trim();
-    const cvc = this.cardCvc.trim();
-
-    if (!MapComponent.CARDHOLDER_REGEX.test(holder)) {
-      return 'Enter a valid cardholder name (letters, spaces, apostrophes, and hyphens only).';
-    }
-
-    if (!MapComponent.CARD_NUMBER_REGEX.test(normalizedCardNumber)) {
-      return 'Enter a valid card number (12 to 19 digits).';
-    }
-
-    if (!this.isLuhnValid(normalizedCardNumber)) {
-      return 'Enter a valid card number.';
-    }
-
-    const expiryMatch = expiry.match(MapComponent.CARD_EXPIRY_REGEX);
-    if (!expiryMatch) {
-      return 'Enter a valid expiry date in MM/YY format.';
-    }
-
-    const month = Number(expiryMatch[1]);
-    const year = 2000 + Number(expiryMatch[2]);
-    const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
-    if (year < currentYear || (year === currentYear && month < currentMonth)) {
-      return 'Card expiry date cannot be in the past.';
-    }
-
-    if (!MapComponent.CARD_CVC_REGEX.test(cvc)) {
-      return 'Enter a valid CVC (3 or 4 digits).';
-    }
-
-    this.cardholderName = holder;
-    this.cardNumber = normalizedCardNumber.replace(/(.{4})/g, '$1 ').trim();
-    this.cardExpiry = `${String(month).padStart(2, '0')}/${String(year % 100).padStart(2, '0')}`;
-    this.cardCvc = cvc;
-    return null;
-  }
-
-  private isLuhnValid(cardNumber: string): boolean {
-    let sum = 0;
-    let shouldDouble = false;
-
-    for (let i = cardNumber.length - 1; i >= 0; i--) {
-      let digit = Number(cardNumber.charAt(i));
-      if (Number.isNaN(digit)) {
-        return false;
-      }
-
-      if (shouldDouble) {
-        digit *= 2;
-        if (digit > 9) {
-          digit -= 9;
-        }
-      }
-
-      sum += digit;
-      shouldDouble = !shouldDouble;
-    }
-
-    return sum % 10 === 0;
   }
 
   private executeReservation(context: any, paymentId: number): void {
@@ -431,15 +386,43 @@ export class MapComponent implements OnInit {
               : Math.max(0, availableSpots - 1);
 
           this.applyDisplayedSpots(selected, nextSpots);
-          this.reserveMessage =
-            nextSpots <= 0 ? 'There are no spots anymore.' : 'Success! Spot reserved.';
+          // Silent success in background - payment already confirmed
         },
         error: (err) => {
-          this.reserveMessage =
-            err?.status === 409 ? 'There are no spots anymore.' : 'Could not reserve right now.';
-          console.error('Failed to save reservation', err);
+          // Log silently in background - payment was successful even if reservation sync fails
+          console.warn('Background reservation sync failed (payment already processed):', err);
         },
       });
+  }
+
+  private executeReservationInBackground(context: any, paymentId: number): void {
+    // Execute reservation in background without blocking the user's response
+    setTimeout(() => {
+      this.executeReservation(context, paymentId);
+    }, 100);
+  }
+
+  private getPaymentValidationError(): string | null {
+    if (!this.cardholderName.trim()) {
+      return 'Please enter the cardholder name.';
+    }
+
+    const cardDigits = this.cardNumber.replace(/\D/g, '');
+    if (!/^\d{16}$/.test(cardDigits)) {
+      return 'Card number must be exactly 16 digits.';
+    }
+
+    const expiry = this.cardExpiry.trim();
+    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) {
+      return 'Expiry must be in MM/YY format.';
+    }
+
+    const cvc = this.cardCvc.trim();
+    if (!/^\d{3,4}$/.test(cvc)) {
+      return 'CVC must be 3 or 4 digits.';
+    }
+
+    return null;
   }
 
   private applyDisplayedSpots(targetLocation: MobilityLocation, spots: number): void {

@@ -110,20 +110,24 @@ public class ReservationService : IReservationService
         _db.Reservations.Add(reservation);
         await _db.SaveChangesAsync();
 
+        // Fire-and-forget background tasks for faster response
         if (reservation.UserId.HasValue && IsBixiReservation(reservation))
         {
-            try
+            _ = Task.Run(async () =>
             {
-                await _carbonFootprintService.RecordBixiSavingsForReservationAsync(reservation.Id);
-            }
-            catch (InvalidOperationException ex)
-            {
-                _logger.LogWarning(ex, "Failed to record BIXI savings for reservation {ReservationId}", reservation.Id);
-            }
+                try
+                {
+                    await _carbonFootprintService.RecordBixiSavingsForReservationAsync(reservation.Id);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to record BIXI savings for reservation {ReservationId}", reservation.Id);
+                }
+            });
         }
 
         await _db.Entry(reservation).Reference(r => r.MobilityLocation).LoadAsync();
-        await PublishReservationEventAsync(
+        _ = PublishReservationEventAsync(
             ParkingEventType.ReservationCreated,
             reservation,
             $"Reservation {reservation.Id} created for location {reservation.MobilityLocationId}.");
@@ -205,11 +209,13 @@ public class ReservationService : IReservationService
         MarkReservationInactive(reservation, ReservationStatus.Cancelled, deleteReason ?? "Cancelled by user");
 
         await _db.SaveChangesAsync();
-        await PublishReservationEventAsync(
+        
+        // Fire-and-forget background tasks for faster response
+        _ = PublishReservationEventAsync(
             ParkingEventType.ReservationCancelled,
             reservation,
             $"Reservation {reservation.Id} cancelled.");
-        await PublishParkingSpotAvailableAsync(reservation);
+        _ = PublishParkingSpotAvailableAsync(reservation);
 
         _logger.LogInformation("Soft-deleted Reservation Id={Id}", id);
         return true;
@@ -230,7 +236,8 @@ public class ReservationService : IReservationService
         foreach (var reservation in expiringSoonReservations)
         {
             reservation.ExpirationWarningSentAt = now;
-            await PublishReservationEventAsync(
+            // Fire-and-forget for faster cleanup
+            _ = PublishReservationEventAsync(
                 ParkingEventType.ReservationAboutToExpire,
                 reservation,
                 $"Reservation {reservation.Id} will expire at {reservation.EndDate:u}.");
@@ -259,11 +266,12 @@ public class ReservationService : IReservationService
 
         foreach (var reservation in expiredReservations)
         {
-            await PublishReservationEventAsync(
+            // Fire-and-forget for faster cleanup
+            _ = PublishReservationEventAsync(
                 ParkingEventType.ReservationExpired,
                 reservation,
                 $"Reservation {reservation.Id} expired.");
-            await PublishParkingSpotAvailableAsync(reservation);
+            _ = PublishParkingSpotAvailableAsync(reservation);
         }
 
         return expiredReservations.Count;

@@ -1,4 +1,4 @@
-﻿﻿import { Component, inject, OnInit, signal } from '@angular/core';
+﻿import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -11,6 +11,8 @@ export interface ReservationSummary {
   startDate: string;
   endDate: string;
   reservationTime: string;
+  status?: string | number;
+  isDeleted?: boolean;
   mobilityLocation?: {
     name: string;
     type: string;
@@ -33,6 +35,9 @@ export class MyReservationsComponent implements OnInit {
   protected loading      = signal(true);
   protected error        = signal<string | null>(null);
 
+  protected activeReservations = signal<ReservationSummary[]>([]);
+  protected expiredReservations = signal<ReservationSummary[]>([]);
+
   ngOnInit(): void {
     const user = this.auth.currentUser();
     if (!user) {
@@ -46,7 +51,24 @@ export class MyReservationsComponent implements OnInit {
       )
       .subscribe({
         next: (res) => {
-          this.reservations.set(res.reservations ?? []);
+          const allReservations = res.reservations ?? [];
+          const now = new Date().getTime();
+
+          const active = allReservations.filter(r => {
+            const isPast = new Date(this.normalizeApiDate(r.endDate)).getTime() < now;
+            const validStatus = r.status === 0 || r.status === 'Active' || r.status === undefined;
+            return !r.isDeleted && validStatus && !isPast;
+          });
+
+          const expired = allReservations.filter(r => {
+            const isPast = new Date(this.normalizeApiDate(r.endDate)).getTime() < now;
+            const validStatus = r.status === 0 || r.status === 'Active' || r.status === undefined;
+            return r.isDeleted || !validStatus || isPast;
+          }).sort((a, b) => new Date(this.normalizeApiDate(b.startDate)).getTime() - new Date(this.normalizeApiDate(a.startDate)).getTime());
+
+          this.reservations.set(allReservations);
+          this.activeReservations.set(active);
+          this.expiredReservations.set(expired);
           this.loading.set(false);
         },
         error: () => {

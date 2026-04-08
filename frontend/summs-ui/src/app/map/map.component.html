@@ -121,7 +121,7 @@
               }
               @if (selectedLocation.availableSpots != null) {
                 <p class="spots" [class.low]="selectedLocation.availableSpots <= 5">
-                  🅿️ <strong>{{ selectedLocation.availableSpots }}</strong> spots available
+                  <strong>{{ selectedLocation.availableSpots }}</strong> spots available
                 </p>
               }
               <div class="date-picker-container">
@@ -170,8 +170,6 @@
                 [(ngModel)]="cardholderName"
                 autocomplete="cc-name"
                 maxlength="50"
-                pattern="^(?=.{2,50}$)[A-Za-z]+(?:[ '-][A-Za-z]+)*$"
-                title="Use letters, spaces, apostrophes, and hyphens only."
               />
             </div>
             <div class="form-group">
@@ -183,9 +181,7 @@
                 (input)="onCardNumberInput()"
                 autocomplete="cc-number"
                 inputmode="numeric"
-                maxlength="23"
-                pattern="^[0-9 ]{12,23}$"
-                title="Enter 12 to 19 digits."
+                maxlength="19"
               />
             </div>
             <div class="form-row">
@@ -199,8 +195,6 @@
                   autocomplete="cc-exp"
                   inputmode="numeric"
                   maxlength="5"
-                  pattern="^(0[1-9]|1[0-2])\/[0-9]{2}$"
-                  title="Use MM/YY format."
                 />
               </div>
               <div class="form-group">
@@ -213,8 +207,6 @@
                   autocomplete="cc-csc"
                   inputmode="numeric"
                   maxlength="4"
-                  pattern="^[0-9]{3,4}$"
-                  title="Enter a 3 or 4 digit CVC."
                 />
               </div>
             </div>

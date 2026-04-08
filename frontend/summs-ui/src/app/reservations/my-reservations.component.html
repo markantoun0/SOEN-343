@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<div class="reservations-page">
+﻿﻿﻿﻿﻿﻿<div class="reservations-page">
 
   <header class="page-header">
     <h1>My Reservations</h1>
@@ -9,7 +9,6 @@
 
   @if (!auth.currentUser()) {
     <div class="empty-state">
-      <span class="icon">🔒</span>
       <p>You need to be signed in to view your reservations.</p>
       <button class="cta-btn" (click)="auth.openDialog()">Sign In / Sign Up</button>
     </div>
@@ -23,43 +22,90 @@
     </div>
   } @else if (reservations().length === 0) {
     <div class="empty-state">
-      <span class="icon">🗓️</span>
       <p>You have no reservations yet.</p>
       <a routerLink="/map" class="cta-btn">Browse Locations</a>
     </div>
   } @else {
-    <ul class="reservation-list">
-      @for (r of reservations(); track r.id) {
-        <li class="reservation-card">
-          <div class="card-header">
-            <span class="type-badge" [class]="r.mobilityLocation?.type ?? r.type">
-              {{ typeLabel(r.mobilityLocation?.type ?? r.type) }}
-            </span>
-            <strong class="location-name">
-              {{ r.mobilityLocation?.name ?? '—' }}
-            </strong>
-          </div>
-          <div class="card-body">
-            <div class="detail">
-              <span class="label">City</span>
-              <span>{{ r.mobilityLocation?.city ?? r.city }}</span>
+    @if (activeReservations().length > 0) {
+      <ul class="reservation-list">
+        @for (r of activeReservations(); track r.id) {
+          <li class="reservation-card">
+            <div class="card-header">
+              <span class="type-badge" [class]="r.mobilityLocation?.type ?? r.type">
+                {{ typeLabel(r.mobilityLocation?.type ?? r.type) }}
+              </span>
+              <strong class="location-name">
+                {{ r.mobilityLocation?.name ?? '—' }}
+              </strong>
             </div>
-            <div class="detail">
-              <span class="label">Start</span>
-              <span>{{ formatDate(r.startDate) }}</span>
+            <div class="card-body">
+              <div class="detail">
+                <span class="label">City</span>
+                <span>{{ r.mobilityLocation?.city ?? r.city }}</span>
+              </div>
+              <div class="detail">
+                <span class="label">Start</span>
+                <span>{{ formatDate(r.startDate) }}</span>
+              </div>
+              <div class="detail">
+                <span class="label">End</span>
+                <span>{{ formatDate(r.endDate) }}</span>
+              </div>
+              <div class="detail">
+                <span class="label">Reserved at</span>
+                <span>{{ formatDate(r.reservationTime) }}</span>
+              </div>
             </div>
-            <div class="detail">
-              <span class="label">End</span>
-              <span>{{ formatDate(r.endDate) }}</span>
-            </div>
-            <div class="detail">
-              <span class="label">Reserved at</span>
-              <span>{{ formatDate(r.reservationTime) }}</span>
-            </div>
-          </div>
-        </li>
-      }
-    </ul>
+          </li>
+        }
+      </ul>
+    } @else {
+      <div class="empty-state">
+        <p>You have no active reservations.</p>
+        <a routerLink="/map" class="cta-btn">Browse Locations</a>
+      </div>
+    }
+
+    @if (expiredReservations().length > 0) {
+      <div class="expired-section">
+        <h2>Past & Expired Reservations</h2>
+        <ul class="reservation-list expired">
+          @for (r of expiredReservations(); track r.id) {
+            <li class="reservation-card expired-card">
+              <div class="card-header">
+                <span class="type-badge" [class]="r.mobilityLocation?.type ?? r.type">
+                  {{ typeLabel(r.mobilityLocation?.type ?? r.type) }}
+                </span>
+                <strong class="location-name">
+                  {{ r.mobilityLocation?.name ?? '—' }}
+                </strong>
+                <span class="status-badge" [class.cancelled]="r.status === 2 || r.status === 'Cancelled'" [class.expired]="r.status !== 2 && r.status !== 'Cancelled'">
+                  {{ r.status === 2 || r.status === 'Cancelled' ? 'Cancelled' : 'Expired/Done' }}
+                </span>
+              </div>
+              <div class="card-body">
+                <div class="detail">
+                  <span class="label">City</span>
+                  <span>{{ r.mobilityLocation?.city ?? r.city }}</span>
+                </div>
+                <div class="detail">
+                  <span class="label">Start</span>
+                  <span>{{ formatDate(r.startDate) }}</span>
+                </div>
+                <div class="detail">
+                  <span class="label">End</span>
+                  <span>{{ formatDate(r.endDate) }}</span>
+                </div>
+                <div class="detail">
+                  <span class="label">Reserved at</span>
+                  <span>{{ formatDate(r.reservationTime) }}</span>
+                </div>
+              </div>
+            </li>
+          }
+        </ul>
+      </div>
+    }
   }
 
 </div>
